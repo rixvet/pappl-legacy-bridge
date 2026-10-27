@@ -89,8 +89,74 @@ Dit is de Windows-equivalent van dezelfde HBPL-pipeline (fxz* = zjs/HBPL, fxhl2*
 
 ## Plan
 
-1. i386 multilib + CUPS installeren (Ubuntu 22.04).
-2. Filters/PPD/dlut naar systeemlocatie kopiëren, dlut-pad fixen, PPD valideren.
-3. Filter-chain handmatig testen (PS -> HBPL) zonder CUPS.
-4. Printer toevoegen via `lpadmin` (socket://192.168.178.10:9100), testpagina.
-5. Fouten itereren via `/var/log/cups/error_log` (LogLevel debug2).
+1. i386 multilib + CUPS installeren (Ubuntu 22.04). -> `scripts/setup-cups.sh`
+2. Filters/PPD/dlut naar systeemlocatie kopiëren (dlut-pad fix zit in `driver/`). -> `scripts/install-driver.sh`
+3. Printer toevoegen via `lpadmin` (socket://192.168.178.10:9100). -> `scripts/setup-printer.sh`
+4. Testpagina printen via CUPS. -> `scripts/test-print.sh`
+
+## Reverse-engineering resultaten (2026-10-27)
+
+### De chain getest zonder CUPS (user-level 32-bit sysroot)
+
+De filters draaien prima op Ubuntu 22.04 via een user-level sysroot
+(`libc6:i386` + `libcups2:i386` debs gedownload via een custom apt-config,
+uitgepakt in `/home/rick/sysroot-i386`, gestart via de sysroot-loader).
+Zie `tests/run-chain-local.sh` (reproduceerbaar, geen root nodig).
+
+### Wat FXM_PF écht doet
+
+- Leest alleen de **eerste 4096 bytes** van de PPD ( Genoeg voor `FXMainFilter`).
+- Schrijft de binnenkomende PS **ongewijzigd** door naar een tempfile
+  (cupsTempFd) en exec't `FXM_MF`. De `%%BeginFeature:`/`%%Creator:`-strings zijn
+  app-specifieke workarounds (OpenOffice.org/StarSuite), geen algemene
+  optie-injectie.
+- **Conclusie:** de PageSize/HWResolution `setpagedevice`-injectie gebeurt
+  normaal door de CUPS front-end (`pstops`/`pdftops` emitten de PPD-featurecode
+  via `ppdEmit`). Zonder CUPS rendert gs op zijn default (A4 @ 72dpi).
+
+### Fix in `driver/filter/FXM_PS2PM`
+
+- `-dDEBUG` verwijderd (moderne gs logt enorme hoeveelheden ruis naar stderr).
+- Resolutie wordt nu expliciet afgeleid van de `FXOutputMode=WxH` PPD-optie
+  (`-r600x600`, fallback = PPD default 600x600). De driver rendert nu altijd
+  op de juiste resolutie, óók als de front-end niets injecteert.
+
+### Fix in `driver/Phaser_6125N.ppd`
+
+- `*FXDlutFilePath` wees naar `Phaser_6125.dlut`; het pakket levert
+  `Phaser_6125N.dlut`. Pad gecorrigeerd (enige wijziging t.o.v. origineel).
+
+### HBPL-formaat (gedecodeerd uit de output)
+
+```
+<ESC>%-12345X @PJL COMMENT/SET ... @PJL ENTER LANGUAGE=HBPL\n
+binaire HBPL attribute-commando's (o.a. 0x9a 0xc4 = raster width/height als 2x uint32 LE)
+gecomprimeerde rasterdata
+SDB <ESC>%-12345X @PJL EOJ\n
+```
+
+Rasterafmetingen in de output:
+
+| Instelling | Raster (px) | Opmerking |
+|---|---|---|
+| A4 @ 72dpi (zonder injectie) | 600 x 842 | gs default, fout |
+| A4 @ 600dpi | **4776 x 6829** | = ImageableArea A4 `11.28 11.28 583.72 830.72` @ 600dpi |
+| A4 @ 300dpi | 2392 x 3414 | = imageable area @ 300dpi |
+
+`FXM_PM2FXR` knipt de PPM bij naar het imageable area (importeert `ppdPageSize`).
+
+### Bewijs: de echte printer print de testpagina
+
+Testpagina's gegenereerd met de chain en rechtstreeks naar
+`192.168.178.10:9100` gestuurd:
+
+- Job log (`http://192.168.178.10/job/logsys.htm`):
+  `Testpage / rick / WINNIE / Completed / 1 / Port 9100 / 2026/10/27 22:14:19`
+  `Testpage600 / rick / WINNIE / Completed / 1 / Port 9100 / 2026/10/27 22:18:32`
+- Page Count op de statuspagina: **8659 -> 8660** (+1 pagina afgedrukt)
+- Bewijslast in `tests/`: `testpage-600dpi.hbpl`, `testpage-72dpi.hbpl`
+
+### Resterend werk (CUPS-integratie)
+
+De chain + printer zijn bewezen werkend. Restant: CUPS installeren, driver naar
+`/usr/lib/cups/filter` kopiëren, queue aanmaken. Scripts staan in `scripts/`.

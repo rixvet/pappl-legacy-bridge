@@ -2,3 +2,5 @@ downloads/
 analysis/deb/
 analysis/tarball/
 analysis/windriver/
+test/
+tests/build/

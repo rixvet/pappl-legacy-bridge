@@ -1,0 +1,43 @@
+#!/bin/sh
+
+# Installation directories...
+prefix=/usr
+exec_prefix=${prefix}
+bindir=${exec_prefix}/bin
+
+# Set the library/font path...
+GS_FONTPATH="$CUPS_FONTPATH"
+export GS_FONTPATH
+
+# Options we use with Ghostscript...
+# (-dDEBUG verwijderd: moderne gs schrijft enorme hoeveelheden debug-ruis
+#  naar stderr. De resolutie wordt nu expliciet meegegeven via -r, afgeleid
+#  van de FXOutputMode PPD-optie, zodat de chain ook op de juiste resolutie
+#  rendert als de CUPS front-end geen setpagedevice-code injecteert.)
+gsopts="-dQUIET -dPARANOIDSAFER -dNOPAUSE -dBATCH "
+gsopts="$gsopts -dNOMEDIAATTRS -sDEVICE=ppmraw -sstdout=%stderr"
+
+# See if we have a profile=n,n,n,n,n,n,n,n,n,n,n option...
+profile=""
+# Raster-resolutie uit de FXOutputMode=WxH optie (fallback = PPD default 600x600)
+resopt="-r600x600"
+for option in $5; do
+    case $option in
+        profile=*)
+	    profile="-scupsProfile=`echo $option | awk -F= '{print $2}'`"
+	;;
+        FXOutputMode=*)
+	    resopt="-r`echo $option | awk -F= '{print $2}'`"
+	;;
+    esac
+done
+
+# See if we have a filename on the command-line...
+if test -z "$6"; then
+	ifile="-"
+else
+	ifile="$6"
+fi
+
+# Now run Ghostscript...
+$bindir/gs $gsopts $resopt -sOUTPUTFILE="%stdout" $profile $ifile
