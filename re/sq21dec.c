@@ -180,8 +180,8 @@ int sq21_decode(const uint8_t *payload, size_t plen, int W, int H,
     static const uint8_t FF4[4] = { 0xff, 0xff, 0xff, 0xff };
     BitR br = { payload, plen, 0 };
     size_t slots = (size_t)W + 4;
-    uint8_t *prev = malloc(slots * 4);
-    uint8_t *cur  = malloc(slots * 4);
+    uint8_t *prev = (uint8_t *)malloc(slots * 4);
+    uint8_t *cur  = (uint8_t *)malloc(slots * 4);
     if (!prev || !cur) {
         free(prev);
         free(cur);
@@ -324,7 +324,7 @@ int main(int argc, char **argv)
     fseek(f, 0, SEEK_END);
     long flen = ftell(f);
     fseek(f, 0, SEEK_SET);
-    uint8_t *d = malloc((size_t)flen);
+    uint8_t *d = (uint8_t *)malloc((size_t)flen);
     if (!d || fread(d, 1, (size_t)flen, f) != (size_t)flen) {
         fprintf(stderr, "sq21dec: cannot read %s\n", fn);
         return 1;
@@ -348,7 +348,7 @@ int main(int argc, char **argv)
         return 1;
     }
     size_t plen = (size_t)flen - off;
-    uint8_t *img = malloc((size_t)W * (size_t)H * 4);
+    uint8_t *img = (uint8_t *)malloc((size_t)W * (size_t)H * 4);
     if (!img) {
         fprintf(stderr, "sq21dec: out of memory\n");
         return 1;

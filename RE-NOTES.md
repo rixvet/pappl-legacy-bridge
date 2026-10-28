@@ -84,23 +84,43 @@ omgeving `PPD`.
 
 Pipeline:
 1. parse options (`PageSize`/`PageRegion`, `FXOutputMode`→dpi (300/600),
-   `FXColorMode` Black→grijs, rest → kleur)
+   `FXColorMode` Black→grijs, rest → kleur, `FXDocumentType`→FXDLUT block code)
 2. PPD lookup (`PaperDimension`, `ImageableArea` voor de page size)
 3. fork/exec `gs` (`-r{dpi} -dDEVICEWIDTHPOINTS= -dDEVICEHEIGHTPOINTS=` uit de PPD,
    `-sDEVICE=ppmraw -sOUTPUTFILE=%stdout`)
-4. per pagina: P6 parsen → crop (PM2FXR regel) → expand naar 4-byte `[ff,R,G,B]`
-   → breedte padden naar veelvoud van 8 (`ffffffff`) → sq21-encode →
-   C/QR/body/payload/"SD" per pagina
+4. per pagina: P6 parsen → crop (PM2FXR regel) → **per pixel kleurcalibratie**
+   (FXM_CC-equivalent, §9: kleur = 3Dlut(CST(rgb)), grijs = NTSC(CST(rgb)))
+   → expand naar 4-byte `[ff,R,G,B]` → breedte padden naar veelvoud van 8
+   (`ffffffff`) → sq21-encode → C/QR/body/payload/"SD" per pagina
 5. PJL header + A-record eenmalig; job trailer aan het eind
+
+Kleurcalibratie (standaard AAN; algoritme in §9, verificatie in §7):
+- CST tabellen: `native/cst_tables.h` (gegenereerd, in git —
+  `re/gen_cst_tables.py` uit `re/extract-tables.py`)
+- 3D LUT: `/usr/share/phaser6125/Phaser_6125N.dlut` (geïnstalleerd door
+  `scripts/install-native-driver.sh`)
+- env `FOO2SQ_CALIBRATE=0` schakelt calibratie uit (raw, of grijs-gemiddeld)
+- env `FOO2SQ_DLUT=<pad>` override voor het .dlut pad; zonder bruikbaar .dlut
+  valt de filter terug op CST-only (zoals FXM_CC zelf)
+- grijs gebruikt geen LUT (alleen CST + NTSC)
 
 De encoder is **exact lossless** (de officieuze FXM_ALC is near-lossless, ±1-2 per
 pixel — beide zijn geldige streams; onze payload is ~0.8% groter).
 
-Build (schoon onder gcc -Wall -Wextra én clang -Weverything -Werror):
+Build (schoon onder gcc -Wall -Wextra én clang -Weverything -Werror; getest
+op clang 14 t/m 21):
 
 ```
-gcc -O2 -Wall -Wextra -o foo2sq21hbpl native/foo2sq21hbpl.c -lm
+gcc   -O2 -Wall -Wextra -o foo2sq21hbpl native/foo2sq21hbpl.c -lm
+clang -Weverything -Werror -Wno-unsafe-buffer-usage -Wno-unknown-warning-option \
+      -O2 -o foo2sq21hbpl native/foo2sq21hbpl.c -lm
 ```
+
+`-Wno-unsafe-buffer-usage`: clang's experimentele C++ bounds-safety lint
+(zit vanaf clang 16 in `-Weverything`); in C niet op te lossen zonder
+`_Ptr` annotaties die gcc niet ondersteunt. `-Wno-unknown-warning-option`
+houdt de command line compatibel met clang ouder dan 16 (die kent de
+eerste vlag niet).
 
 ## 7. Verificatie
 
@@ -113,11 +133,32 @@ gcc -O2 -Wall -Wextra -o foo2sq21hbpl native/foo2sq21hbpl.c -lm
   (PJL/A/C/QR/body/SD/trailer) + per-pagina lossless round-trip vs een
   standalone gs render. Gebruikt de C decoder; pagina's parallel (ctypes released
   de GIL). A4@600 kleurpagina verifieert in ~1.5s.
-- Getest & EXACT: A4@600 1-page, A4@600 2-page, A4@300, Letter@600,
-  FXColorMode=Black, direct PDF input, colorpage (kleur/noise/schaakbord)
+- `re/verify_model.c` — byte-exact model van de FXM_CC color stage (CST +
+  tetrahedral 3D LUT); parameters uit live gdb dumps van de 32-bit binary
+  (`re/dump-params.gdb`: `cst-param.bin`, `dlut-param.bin`, `xyz2srgbtrc.bin`).
+  **Byte-exact** tegen ground truth: alle 256^3 kleuren (synth.fxr→synth-cc.fxr)
+  en een echte pagina (s3-pr.fxr→s4-cc.fxr, 500.990 px).
+- `re/calib.c` — oracle voor de driver: zelfde model, maar lezend uit het .dlut
+  bestand (zoals de driver). Bouw als CLI (FXR→FXR, cross-check vs ground truth)
+  én als `re/libcalib.so` (ctypes, voor verify-native.py). Byte-exact tegen
+  ground truth: synth (16.777.216 px), s3→s4 (500.990 px), gray-test→gray-out.
+- `re/extract-tables.py` + `re/gen_cst_tables.py` — halen de CST tabellen uit de
+  FXM_CC ELF en genereren `native/cst_tables.h` (in git; niet handmatig editten).
+- `re/FXM_CC-decompiled.c` — Ghidra decompilatie van de 32-bit FXM_CC (16
+  functions; `main` toont de CST→3Dlut volgorde). Regenereren:
+  `re/DecompileFxmCc.java` (Ghidra headless, Java script).
+- Getest & EXACT (verify-native.py, A4@600 colorpage.pdf, ~32.6M px/pagina):
+  raw (`FOO2SQ_CALIBRATE=0`), color gekalibreerd (`FXDocumentType` Normal én
+  Photo — twee verschillende DLUT blocks), gray gekalibreerd
+  (`FXColorMode=Black`), gray average, 1-page én 2-page (paginanummering +
+  stream alignment). De gekalibreerde round-trip vergelijkt tegen de oracle
+  (re/calib.c) — de driver is daarmee **byte-exact gelijk aan de originele
+  FXM_CC transform**.
+- Eerdere tests & EXACT: A4@300, Letter@600, direct PDF input.
 - **Echte printer**: 1-page print (page count 8660→8661), 2-page print
   (8661→8663), colorpage met meahow (8663→8664); job log toont `Completed`
-  met het juiste pagina-aantal.
+  met het juiste pagina-aantal. (Printer is gedeeld; teller staat nu op 8669 —
+  print zuinig met testpagina's.)
 
 ## 8. Installatie (native, 64-bit)
 
@@ -130,6 +171,8 @@ bash scripts/test-print.sh                   # drukt tests/colorpage.pdf af
 - filter → `/usr/lib/cups/filter/foo2sq21hbpl` (root:root 0755)
 - PPD → `/usr/share/cups/model/Xerox/en/Phaser_6125N-native.ppd`
   (zelfde opties als de originele PPD; `*cupsFilter` wijst naar foo2sq21hbpl)
+- .dlut → `/usr/share/phaser6125/Phaser_6125N.dlut` (kleurcalibratie, §9; de
+  install script doet ook een `clang -Weverything -Werror` sanity build)
 - queue `Phaser6125N` → `socket://192.168.178.10:9100`
 
 ### CUPS "Printer drivers are deprecated" waarschuwing
@@ -146,38 +189,130 @@ afgeschaft ten gunste van driverless IPP. Voor deze setup is het loos alarm:
 - Onze filter is standalone: printen kan altijd zonder CUPS via
   `native/foo2sq21hbpl 1 <user> <title> 1 "<options>" <file> | nc 192.168.178.10 9100`
   (de eerste testprints in deze sessie gingen precies zo).
-- Wil je ooit toch van de PPD af: de filter kan verpakt worden als IPP printer
-  application (`ippserver`) — nu niet nodig.
+- Wil je ooit toch van de PPD af: zie "Toekomst: CUPS 3.x / driverless
+  (ippserver)" hieronder.
+
+### Compatibiliteit (getest in WSL distro's)
+
+| Ubuntu | CUPS | gcc | clang | ghostscript | status |
+|--------|------|-----|-------|-------------|--------|
+| 22.04 (deze WSL) | 2.4.1 | 11.4 | 14 | 9.55 | ✓ alles werkt (build, CUPS queue, print) |
+| 24.04 | 2.4.7 | 13.3 | 18 | 10.02 | ✓ alles werkt (gcc + clang -Weverything -Werror build, verify raw/gekalibreerd color/grijs EXACT, CUPS queue; print overgeslagen) |
+| 26.04 | 2.4.16 | 15.2 | 21 | 10.06 | ✓ alles werkt (gcc + clang -Weverything -Werror build, verify raw/gekalibreerd color/grijs EXACT, CUPS queue, **echte print** — teller 8669→8670, job Completed) |
+
+Op 26.04 heeft de filter build `libc6-dev` nodig (standaard niet
+aanwezig) — `scripts/test-compat-distro.sh` installeert het mee.
+
+`scripts/test-compat-distro.sh` test de hele repo in een WSL distro
+(22.04/24.04/26.04): repo uitpakken, filter bouwen (gcc + clang
+`-Weverything -Werror`), verify-native draaien (raw + gekalibreerd),
+queue aanmaken, print (of `SKIP_PRINT=1`).
+
+### Zonder CUPS (fallback)
+
+`scripts/print-direct.sh <bestand.pdf|ps> ["options"]` — draait de filter
+direct en stuurt de HBPL stream naar `PRINTER_IP:9100` (raw JetDirect, `nc`).
+Bouwt de filter zelf als die er nog niet is. Werkt op elke Linux met
+gcc + ghostscript, zonder CUPS.
+
+### Status ophalen (extra gimmick)
+
+`scripts/printer-status.py` — read-only status, twee bronnen:
+- **HTTP** (CentreWare webinterface): globale status, page count, papierladen,
+  supplies, laatste job-log regels. (De pagina's eindigen in een NUL-byte; die
+  wordt gestript.)
+- **SNMP**: deze printer spreekt **alleen SNMPv1**, community `public`
+  (`snmpwalk -v1 -c public …`); `prtMarkerSupplies` (RFC 1759) voor
+  description/max/level.
+
+Env: `PRINTER_IP` (default 192.168.178.10), `SNMP_COMMUNITY`, `SNMP_TIMEOUT`.
+Bekende beperking: **toner-niveaus zijn niet afleesbaar** — de cartridges zijn
+niet-origineel, de printer meldt `--` (HTTP) / level -2 (SNMP). Imaging Unit
+en Fuser rapporteren wel percentages. (Gimmick/TODO: met originele toners
+zouden de niveaus hier direct leesbaar zijn.)
+
+### Toekomst: CUPS 3.x / driverless (ippserver)
+
+CUPS 3.x schaft PPD+filter drivers af; de route is dan IPP Everywhere. Deze
+printer heeft zelf geen IPP, maar onze filter is een standalone binary (die de
+complete PJL/HBPL stream op stdout zet) — de migratie is klein:
+
+1. `cups-ipp-utils` installeren (bevat `ippeveprinter`; in CUPS 3.x heet dit
+   `ippserver`)
+2. de command wrapper installeren als CUPS command filter
+   (`scripts/ippeve-wrapper.sh` → `/usr/lib/cups/command/foo2sq21hbpl-ippeve`):
+   leest het document van stdin, roept de filter aan, schrijft HBPL naar stdout
+3. de printer als IPP service draaien — de output gaat naar de raw socket:
+   ```
+   ippeveprinter -m "Phaser 6125N" -M "Xerox" -l "Thuis" \
+       -D socket://192.168.178.10:9100 \
+       -f application/pdf,application/postscript \
+       -s 10,10 \
+       -c /usr/lib/cups/command/foo2sq21hbpl-ippeve \
+       "Phaser6125N"
+   ```
+   (CUPS 3.x: `ippserver` met dezelfde opties.) Clients printen dan driverless
+   via IPP Everywhere naar deze host.
+
+Nu niet nodig: 22.04/24.04/26.04 draaien allemaal CUPS 2.4.x met PPD support,
+en `scripts/print-direct.sh` is de CUPS-loze fallback. De wrapper is lokaal
+getest: stdin → byte-identieke HBPL stream als de directe filter.
 
 ## 9. Bekende beperkingen / vervolgwerk
 
-- **Color calibration (FXM_CC + dlut) NIET gerepliceerd** — maar het formaat is
-  inmiddels goeddeels gekraakt (zie onder). Kleuren zijn structureel correct
-  (zwart→zwart, wit→wit geverifieerd; de kleurtestpagina ziet er goed uit),
-  maar niet gekalibreerd zoals de officieuze driver.
+- **Kleurcalibratie (FXM_CC + .dlut) — GEREPLICEERD, byte-exact geverifieerd**
+  (integratie in de driver: §6; verificatie: §7). Het gekraakte algoritme
+  (Ghidra decompilatie `re/FXM_CC-decompiled.c` + parameters uit live gdb
+  dumps van de 32-bit binary):
 
-  **DLUT formaat** (`driver/Phaser_6125N.dlut`, 265944 bytes, big-endian):
-  - header: magic `DLUT`, u32be count=13, 13× u32be block-offsets
-    (13 aaneengesloten blokken van 20428 bytes; laatste blok eindigt exact
-    op EOF)
-  - elk blok: magic `dlt4` + u32be(0) + **3×256 bytes 1D curves** (R,G,B —
-    in dit bestand allemaal identity) + **17³ × 4 bytes 3D LUT** (4913 nodes,
-    byte range 0..255; vermoedelijk RGB+pad — block 11 toont (0,~59,255,0)-achtige
-    kleuren, block 6 een schone G-ramp met stap 16 = 256/16 ✓)
-  - 13 blokken = ~9 distincte calibratie-sets (sommige duplicaten) — vermutlich
-    per papiertype/printmodus; block-selectie-logica nog te bepalen
-  - FXM_CC heet intern `fxcolorconv` en refereert ICC gamma-TRC tags
-    (`gamma10/14/18/22/26TRC`) — waarschijnlijk voor een ICC-input path;
-    voor deze printer is de stage een per-pixel RGB→RGB 24bpp transform
-    (s3-pr.fxr en s4-cc.fxr hebben identieke FXR headers: 595×842, 24bpp)
-  - **Inschatting vervolgwerk: ~half dag (3-5 uur).** Resteren: node byte order,
-    grid axis order, interpolatie (trilinear vs tetrahedral), block-selectie.
-    Implementatie = ~150 regels C (trilinear over 17³) in de driver; oracle =
-    32-bit FXM_CC via de i386 sysroot + capture `re/build/s4-cc.fxr` voor
-    byte-exact verificatie. Laag risico dankzij de oracle.
-  - Alternatief (niet exact): de Windows driver ship `fxhl2zp1.icm`; met lcms2
-    krijg je ICC-gekalibreerde output zonder de DLUT te reversen, maar dat
-    matcht de officieuze driver niet byte-exact.
+  **Pipeline** (uit `main`): `color: out = 3Dlut(CST(in))`,
+  `gray: out = NTSC(CST(in))` — CST wordt eerst toegepast, dáárna de 3D LUT.
+
+  **CST** (per pixel, 8-bit in → 8-bit uit; lossy 8→16→12→8):
+  1. gamma-2.2 TRC: `CST_TRC[i] = round(65535·(i/255)^2.2)` (8→16 bit)
+  2. 3×3 matrix signed Q16: `out = ((M[i]>>2)·v + …) >> 18` == `m·v/16`
+     (16→12 bit; signed arithmetic shifts — `sar`/`imul` in de assembly).
+     `CST_M = {65543, 0, 5, -3, 65541, 3, -2, -1, 65535}` — sRGB primaries
+     met gamma22TRC (≈ identity, kleine off-diagonals)
+  3. clamp `[0, 0xfff]`
+  4. inverse TRC `CST_ITRC` (4096 entries, 12→8 bit)
+  Tabellen: `native/cst_tables.h` (gegenereerd, in git).
+
+  **3D LUT** (tetrahedral, 17³ nodes):
+  - node index `(c2>>4)·289 + (c1>>4)·17 + (c0>>4)`; fracties `f = c&0xf`
+    (deltas 289/17/1), descending sort
+  - weights `w0=16-f[0]`, `w1=f[0]-f[1]`, `w2=f[1]-f[2]`, `w3=f[2]` (sommen 16)
+  - nodes `base`, `base+d[0]`, `base+d[0]+d[1]`, `base+307` (c111)
+  - resultaat `(Σ w·node) >> 4` (≤ 255; clamp overbodig)
+  - white shortcut: `(c0 & c1 & c2) == 0xff` → `(255,255,255)`
+
+  **.dlut formaat** (`driver/Phaser_6125N.dlut`, 265944 bytes, big-endian):
+  - header: magic `DLUT`, u32be count=13, 13× u32be block-offsets,
+    u32be metacount=79, 79× u32be `meta[]`
+  - `meta[FXDLUT]` = 1-based blocknummer; FXDLUT komt uit de PPD
+    (`FXDocumentType` setpagedevice: Normal 24, Photo 22, Presentation 26,
+    Web 23, POP 32)
+  - block data op `offsets[block-1]+8` (8-byte `dlt4`+size header), 20420
+    bytes = 768 bytes 1D curves (ongebruikt in het pixel path) + 17³×4 LUT
+  - block-selectie uit meta[]: Normal 24→block 3, Photo 22→block 1,
+    Presentation 26→block 5, Web 23→block 2, POP 32→block 11
+  - **file vs memory**: FXM_CC bewaart elke 4-byte node reversed in het
+    geheugen — dump node = `[out2, out1, out0, pad]`, file node =
+    `[pad, out0, out1, out2]` (bewezen: block 3 == `re/build/dlut-param.bin`
+    met elke node byte-reversed). De driver leest het file formaat.
+
+  **Gray**: `g = (c0·77 + c1·151 + c2·28) >> 8` over de CST output
+  (NTSC 0.30/0.59/0.11; geverifieerd: `gray-test.fxr` → `4c 96 1b 81`).
+
+  **Ground truth**: 32-bit FXM_CC via de i386 sysroot (`re/run-stage.sh`);
+  captures `synth.fxr→synth-cc.fxr` (alle 256^3 kleuren),
+  `s3-pr.fxr→s4-cc.fxr` (echte pagina, 500.990 px), `gray-test.fxr→gray-out.fxr`.
+  Model (`re/verify_model.c`) en oracle (`re/calib.c`) zijn hier byte-exact
+  tegen; de driver is byte-exact tegen de oracle (`re/verify-native.py`).
+
+  **Env**: `FOO2SQ_CALIBRATE=0` (calibratie uit), `FOO2SQ_DLUT=<pad>` (override);
+  default `.dlut` = `/usr/share/phaser6125/Phaser_6125N.dlut`. Zonder
+  bruikbaar .dlut: CST-only (zoals FXM_CC zelf).
 - FXM_SBP / FXM_PR details (gray / turnpage) niet gerepliceerd.
 - Officieuze chain is near-lossless; de onze is exact lossless.
 - CUPS draait filters als user `lp`; `/usr/lib/cups/filter` moet root:root 0755.

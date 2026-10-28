@@ -12,18 +12,28 @@
  *   lossless run/diff encoder -> Fuji HBPL container (@DRDM=RASTER, single
  *   interleaved bitstream) -> stdout.
  *
- * Deliberately NOT replicated (v1):
- *   - FXM_CC's dlut colour calibration (the print is slightly uncalibrated;
- *     structurally the raster is identical: black->black, white->white).
+ * Colour calibration (FXM_CC) IS replicated, byte-exact (RE-NOTES.md §9):
+ *   colour:  out = 3Dlut(CST(in)) — gamma-2.2 TRC + 3x3 matrix (signed Q16)
+ *            + tetrahedral 17^3 LUT from the .dlut file, block selected via
+ *            the PPD FXDocumentType option
+ *   gray:    out = NTSC(CST(in))  — (R*77 + G*151 + B*28) >> 8
+ * Verified byte-exact against the original FXM_CC over all 256^3 colours and
+ * a real page (re/verify_model.c).  Disable with FOO2SQ_CALIBRATE=0, override
+ * the .dlut path with FOO2SQ_DLUT.
+ *
+ * Deliberately NOT replicated:
  *   - the near-lossless quantisation of FXM_ALC (we encode losslessly, which
  *     is a valid subset of the same bitstream — the printer's decoder only
  *     knows run/diff/switch tokens).
  *
  * CUPS filter protocol:  foo2sq21hbpl job-id user title copies options [file]
  * Environment:            PPD=<path to the PPD>
+ *                         FOO2SQ_CALIBRATE=0  — disable the FXM_CC transform
+ *                         FOO2SQ_DLUT=<path>  — override the .dlut file path
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <strings.h>
 #include <unistd.h>
@@ -33,6 +43,8 @@
 #include <errno.h>
 #include <sys/wait.h>
 #include <signal.h>
+
+#include "cst_tables.h"   /* gegenereerd: CST_TRC / CST_ITRC / CST_M (FXM_CC) */
 
 /* ------------------------------------------------------------------ */
 /* sq21 / HBPL1 ("XRC") codec — tables reverse engineered from FXM_ALC  */
@@ -67,10 +79,10 @@ static void init_hpe0(void)
     };
     for (int d = 0; d < 256; d++) {
         int val = d < 128 ? d : d - 256;
+        int sign = val < 0, a = val < 0 ? -val : val;
         if (val == 0)  { HPE0[d].code = 0; HPE0[d].len = 3; continue; }
         if (val == 1)  { HPE0[d].code = 1; HPE0[d].len = 3; continue; }
         if (val == -1) { HPE0[d].code = 2; HPE0[d].len = 3; continue; }
-        int sign = val < 0, a = val < 0 ? -val : val;
         for (int i = 0; i < 6; i++) {
             if (a < g[i].base + (1 << g[i].ebits)) {
                 HPE0[d].code = ((unsigned)g[i].prefix << (1 + g[i].ebits))
@@ -87,12 +99,13 @@ static void init_hpe0(void)
 typedef struct {
     unsigned char *buf; size_t len, cap;
     unsigned long long acc; int nbits;
+    unsigned char pad[4];   /* expliciete tail padding (houdt -Wpadded stil) */
 } BitW;
 
 static void bw_init(BitW *b)
 {
     b->cap = 1 << 16; b->len = 0;
-    b->buf = malloc(b->cap);
+    b->buf = (unsigned char *)malloc(b->cap);
     if (!b->buf) { fprintf(stderr, "foo2sq21hbpl: out of memory\n"); exit(1); }
     b->acc = 0; b->nbits = 0;
 }
@@ -100,7 +113,7 @@ static void bw_need(BitW *b, size_t n)
 {
     if (b->len + n <= b->cap) return;
     while (b->len + n > b->cap) b->cap *= 2;
-    b->buf = realloc(b->buf, b->cap);
+    b->buf = (unsigned char *)realloc(b->buf, b->cap);
     if (!b->buf) { fprintf(stderr, "foo2sq21hbpl: out of memory\n"); exit(1); }
 }
 static void bw_bits(BitW *b, unsigned val, int n)
@@ -137,9 +150,10 @@ static inline const unsigned char *px_at(const unsigned char *img, int W, int x,
 }
 static inline const unsigned char *pred_at(const unsigned char *img, int W, int x, int y, int pid)
 {
+    int slot;
     if (pid == 0)   /* left: current row, slot x (x==0 -> margin) */
         return img + ((size_t)(y + 1) * (size_t)(W + 2) + (size_t)x) * 4;
-    int slot = x + 1 + PRED_DX[pid - 1];
+    slot = x + 1 + PRED_DX[pid - 1];
     if (slot < 0 || slot > W + 1) return FF4;   /* beyond the sentinel -> margin */
     return img + ((size_t)y * (size_t)(W + 2) + (size_t)slot) * 4;
 }
@@ -150,11 +164,11 @@ static void put_token(BitW *b, int hsel, int token)
 }
 static void put_runlen(BitW *b, int run)   /* 1..17057 */
 {
+    int g = 7, n;
     if (run <= 25) { bw_bits(b, HRN0[run].code, HRN0[run].len); return; }
-    int g = 7;
     if (run >= RL_GROUP16[8]) { g = 8; while (run >= RL_GROUP16[g + 1]) g++; }
     bw_bits(b, (unsigned)(g + 49), 6);
-    int n = RL_ADDBITS16[g];
+    n = RL_ADDBITS16[g];
     if (n) bw_bits(b, (unsigned)(run - RL_GROUP16[g]), n);
 }
 
@@ -185,9 +199,9 @@ static void sq21_encode(BitW *b, int W, int H, const unsigned char *img)
 
         if (brun == 0) {
             /* diff against the left pixel (margin 0xff at x==0) */
-            put_token(b, hsel, 5);
             const unsigned char *px = px_at(img, W, x, y);
             const unsigned char *lp = (x == 0) ? FF4 : px_at(img, W, x - 1, y);
+            put_token(b, hsel, 5);
             for (int j = 0; j < 4; j++)
                 bw_bits(b, HPE0[(px[j] - lp[j]) & 0xff].code, HPE0[(px[j] - lp[j]) & 0xff].len);
             bit = 0;
@@ -268,25 +282,26 @@ static void put_u32le(unsigned char *p, unsigned long v)
 static int ppd_lookup(const char *ppdpath, const char *pagesize, const char *key,
                       double *vals, int nvals)
 {
-    if (!ppdpath) return 0;
-    FILE *f = fopen(ppdpath, "r");
-    if (!f) return 0;
+    FILE *f;
     char line[1024];
     char pat[128];
-    snprintf(pat, sizeof pat, "*%s %s/", key, pagesize);
+    char *q, *s, *end;
     int n = 0;
+    if (!ppdpath) return 0;
+    f = fopen(ppdpath, "r");
+    if (!f) return 0;
+    snprintf(pat, sizeof pat, "*%s %s/", key, pagesize);
     while (fgets(line, sizeof line, f)) {
         if (strncmp(line, pat, strlen(pat))) continue;
-        char *q = strchr(line, ':');
+        q = strchr(line, ':');
         if (!q) continue;
         q++;
-        char *s = strchr(q, '"');
+        s = strchr(q, '"');
         if (!s) continue;
         s++;
         for (int i = 0; i < nvals; i++) {
             while (*s && isspace((unsigned char)*s)) s++;
             if (!*s || *s == '"') break;
-            char *end;
             vals[i] = strtod(s, &end);
             if (end == s) break;
             s = end;
@@ -299,13 +314,173 @@ static int ppd_lookup(const char *ppdpath, const char *pagesize, const char *key
 }
 
 /* ------------------------------------------------------------------ */
+/* FXM_CC colour calibration (byte-exact re-implementation)             */
+/*                                                                     */
+/* The original FXM_CC stage transforms every pixel as                  */
+/*     colour:  out = 3Dlut(CST(in))                                   */
+/*     gray:    out = NTSC(CST(in))                                    */
+/* where CST is a gamma-2.2 round trip (8->16 bit TRC, 3x3 matrix in    */
+/* signed Q16 fixed point, clamp to 12 bit, 4096-entry inverse TRC)    */
+/* and 3Dlut is a tetrahedral 17^3 LUT loaded from the .dlut file.      */
+/* The whole chain is verified byte-exact against the original binary  */
+/* (re/verify_model.c: all 256^3 colours + a real page).               */
+/*                                                                     */
+/* .dlut file format (all big-endian): "DLUT", u32 block count,        */
+/* count x u32 block offsets, u32 metadata count, metadata count x     */
+/* u32 values.  The block is selected by metadata[FXDLUT] (1-based);   */
+/* its data starts at offsets[block-1] + 8 (skipping the 8-byte        */
+/* 'dlt4' header) and is 20420 bytes: 768 bytes of 1D curves (unused   */
+/* by FXM_CC's pixel path) followed by 17^3 nodes of 4 bytes           */
+/* [pad, out0, out1, out2].                                            */
+/* ------------------------------------------------------------------ */
+
+static uint8_t *dlut_nodes = NULL;   /* 17^3 * 4 bytes, file byte order */
+
+static uint32_t rd32be(const uint8_t *p)
+{
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] << 8) | (uint32_t)p[3];
+}
+
+/* Laad de 3D LUT block voor `fxdlut` (de FXDLUT waarde horend bij het
+ * PPD FXDocumentType).  Retourneert 0 bij succes, -1 bij een onbruikbaar
+ * bestand (de aanroeper valt dan terug op CST-only, zoals FXM_CC zelf). */
+static int dlut_load(const char *path, int fxdlut)
+{
+    FILE *f;
+    uint8_t hdr[8];
+    uint32_t count;
+    uint32_t *offs;
+    uint8_t *raw = NULL;
+    uint8_t b[4];
+    uint32_t metacount;
+    uint32_t block;
+    int rc = -1;
+    f = fopen(path, "rb");
+    if (!f) return -1;
+    if (fread(hdr, 1, 8, f) != 8 || memcmp(hdr, "DLUT", 4) != 0) { fclose(f); return -1; }
+    count = rd32be(hdr + 4);
+    if (count == 0 || count > 4096) { fclose(f); return -1; }
+    offs = (uint32_t *)malloc(count * sizeof *offs);
+    if (!offs) { fclose(f); return -1; }
+    for (uint32_t i = 0; i < count; i++) {
+        if (fread(b, 1, 4, f) != 4) goto out;
+        offs[i] = rd32be(b);
+    }
+    if (fread(b, 1, 4, f) != 4) goto out;            /* metadata count */
+    metacount = rd32be(b);
+    if (fxdlut < 0 || (uint32_t)fxdlut >= metacount) goto out;
+    if (fseek(f, (long)fxdlut * 4, SEEK_CUR) != 0) goto out;   /* naar meta[fxdlut] */
+    if (fread(b, 1, 4, f) != 4) goto out;
+    block = rd32be(b);                      /* 1-based block nummer */
+    if (block < 1 || block > count) goto out;
+    /* block data: offsets[block-1] + 8, 20420 bytes (768 curves + 17^3*4 LUT) */
+    if (fseek(f, (long)offs[block - 1] + 8, SEEK_SET) != 0) goto out;
+    raw = (uint8_t *)malloc(20420);
+    if (!raw) goto out;
+    if (fread(raw, 1, 20420, f) != 20420) goto out;
+    dlut_nodes = raw + 768;    /* 17^3 nodes x 4 bytes, [pad, out0, out1, out2] */
+    raw = NULL;                /* het blok blijft leven via dlut_nodes */
+    rc = 0;
+out:
+    free(raw);
+    free(offs);
+    fclose(f);
+    return rc;
+}
+
+/* CST stage: gamma-2.2 round trip, 8-bit in -> 8-bit out (lossy 8->16->12->8). */
+static void calib_cst(const uint8_t in[3], uint8_t out[3])
+{
+    int32_t v0 = CST_TRC[in[0]];
+    int32_t v1 = CST_TRC[in[1]];
+    int32_t v2 = CST_TRC[in[2]];
+    /* 3x3 matrix, signed Q16: (M>>2)*v >> 18 == m*v/16 (16 -> 12 bit) */
+    int32_t o0 = ((CST_M[0] >> 2) * v0 + (CST_M[1] >> 2) * v1 + (CST_M[2] >> 2) * v2) >> 18;
+    int32_t o1 = ((CST_M[3] >> 2) * v0 + (CST_M[4] >> 2) * v1 + (CST_M[5] >> 2) * v2) >> 18;
+    int32_t o2 = ((CST_M[6] >> 2) * v0 + (CST_M[7] >> 2) * v1 + (CST_M[8] >> 2) * v2) >> 18;
+    if (o0 < 0) o0 = 0; else if (o0 > 0xfff) o0 = 0xfff;
+    if (o1 < 0) o1 = 0; else if (o1 > 0xfff) o1 = 0xfff;
+    if (o2 < 0) o2 = 0; else if (o2 > 0xfff) o2 = 0xfff;
+    out[0] = CST_ITRC[o0];
+    out[1] = CST_ITRC[o1];
+    out[2] = CST_ITRC[o2];
+}
+
+static void dlut_tetra(const uint8_t c[3], uint8_t out[3]);
+
+/* Volledige FXM_CC kleur transform: out = 3Dlut(CST(in)).
+ * Zonder .dlut: alleen CST (zoals het origineel als het bestand ontbreekt). */
+static void calib_pixel(const uint8_t in[3], uint8_t out[3])
+{
+    uint8_t c[3];
+    calib_cst(in, c);
+    if (!dlut_nodes) {
+        out[0] = c[0]; out[1] = c[1]; out[2] = c[2];
+        return;
+    }
+    dlut_tetra(c, out);
+}
+
+/* Tetrahedral interpolatie in de 17^3 LUT (FXM_CC cil_3Dlut_Conv_sBGR).
+ * Node index: i = c[2]>>4 (x289), j = c[1]>>4 (x17), k = c[0]>>4 (x1);
+ * node bytes: [pad, out0, out1, out2].  De 4 gewichten zijn de verschillen
+ * van de descending gesorteerde 4-bit fracties; ze sommen tot 16. */
+static void dlut_tetra(const uint8_t c[3], uint8_t out[3])
+{
+    int base, w0, w1, w2, w3, s0, s1, s2;
+    int f[3], d[3];
+    const uint8_t *n0, *nA, *nAB, *nABC;
+    if ((c[0] & c[1] & c[2]) == 0xff) {    /* white shortcut */
+        out[0] = out[1] = out[2] = 0xff;
+        return;
+    }
+    base = (c[2] >> 4) * 289 + (c[1] >> 4) * 17 + (c[0] >> 4);
+    f[0] = c[2] & 0xf; f[1] = c[1] & 0xf; f[2] = c[0] & 0xf;
+    d[0] = 289; d[1] = 17; d[2] = 1;
+    for (int a = 1; a < 3; a++) {           /* sorteer descending op fractie */
+        int fv = f[a], dv = d[a], b = a - 1;
+        while (b >= 0 && f[b] < fv) { f[b + 1] = f[b]; d[b + 1] = d[b]; b--; }
+        f[b + 1] = fv; d[b + 1] = dv;
+    }
+    w0 = 16 - f[0]; w1 = f[0] - f[1]; w2 = f[1] - f[2]; w3 = f[2];
+    n0 = dlut_nodes + (size_t)base * 4;
+    nA = dlut_nodes + (size_t)(base + d[0]) * 4;
+    nAB = dlut_nodes + (size_t)(base + d[0] + d[1]) * 4;
+    nABC = dlut_nodes + (size_t)(base + 307) * 4;    /* c111 */
+    /* node bytes: [pad, out0, out1, out2] */
+    s0 = w0 * n0[1] + w1 * nA[1] + w2 * nAB[1] + w3 * nABC[1];
+    s1 = w0 * n0[2] + w1 * nA[2] + w2 * nAB[2] + w3 * nABC[2];
+    s2 = w0 * n0[3] + w1 * nA[3] + w2 * nAB[3] + w3 * nABC[3];
+    out[0] = (uint8_t)(s0 >> 4);    /* gewichten sommen tot 16, dus s>>4 <= 255 */
+    out[1] = (uint8_t)(s1 >> 4);
+    out[2] = (uint8_t)(s2 >> 4);
+}
+
+/* 1-pixel cache, zoals FXM_CC's main loop (de transform is puur). */
+static void calib_pixel_cached(const uint8_t in[3], uint8_t out[3])
+{
+    static uint32_t c_in = 0xffffffffu;
+    static uint8_t c_out[3];
+    uint32_t k = (uint32_t)in[0] | ((uint32_t)in[1] << 8) | ((uint32_t)in[2] << 16);
+    if (k == c_in) {
+        out[0] = c_out[0]; out[1] = c_out[1]; out[2] = c_out[2];
+        return;
+    }
+    calib_pixel(in, out);
+    c_in = k;
+    c_out[0] = out[0]; c_out[1] = out[1]; c_out[2] = out[2];
+}
+
+/* ------------------------------------------------------------------ */
 /* PPM (P6) stream reader                                              */
 /* ------------------------------------------------------------------ */
 
 typedef struct {
     FILE *f;
-    int w, h, maxval;
     unsigned char *row;   /* w*3 bytes */
+    int w, h, maxval;
+    int pad;              /* expliciete tail padding (houdt -Wpadded stil) */
 } Ppm;
 
 static int ppm_getc(FILE *f)   /* skips whitespace and # comments */
@@ -320,16 +495,17 @@ static int ppm_getc(FILE *f)   /* skips whitespace and # comments */
 static int ppm_next(Ppm *p)    /* read the next image header; 0 at EOF */
 {
     int c = ppm_getc(p->f);
+    long v[3];
+    int nv = 0;
     if (c == EOF) return 0;
     if (c != 'P') return -1;
     c = ppm_getc(p->f);
     if (c != '6') return -1;
-    long v[3]; int nv = 0;
     while (nv < 3) {
+        long x = 0;
         c = ppm_getc(p->f);
         if (c == EOF) return -1;
         if (!isdigit(c)) return -1;
-        long x = 0;
         while (isdigit(c)) { x = x * 10 + (c - '0'); c = fgetc(p->f); }
         if (c == '#') { while (c != '\n' && c != EOF) c = fgetc(p->f); }
         else if (c != EOF) ungetc(c, p->f);
@@ -341,7 +517,7 @@ static int ppm_next(Ppm *p)    /* read the next image header; 0 at EOF */
     p->w = (int)v[0]; p->h = (int)v[1]; p->maxval = (int)v[2];
     if (p->w <= 0 || p->h <= 0 || p->maxval != 255) return -1;
     free(p->row);
-    p->row = malloc((size_t)p->w * 3);
+    p->row = (unsigned char *)malloc((size_t)p->w * 3);
     if (!p->row) return -1;
     return 1;
 }
@@ -357,31 +533,52 @@ static void sanitize(char *s)
 
 int main(int argc, char **argv)
 {
+    const char *user, *title, *opts, *input;
+    const char *ce, *dlut_path;
+    char pagesize[64] = "A4";
+    int copies, dpi = 600, gray = 0, calibrate = 1;
+    int fxdlut = 24;   /* FXDocumentType Normal (FXDLUT code uit de PPD) */
+    /* Variabelen voor de secties hieronder: bovenaan gedeclareerd zodat
+     * er geen declaratie-na-statement meer in de body staat
+     * (clang -Wdeclaration-after-statement). */
+    const char *ppd;
+    double pd[2] = { 595, 842 };                      /* A4 default, pt */
+    double ia[4] = { 11.28, 11.28, 583.72, 830.72 };  /* left bottom right top, pt */
+    double rr, t;
+    int x0, x1, img_w, marg_x, marg_y;
+    int pfd[2];
+    pid_t pid;
+    FILE *gsout;
+    char hostname[256] = "localhost";
+    char ttl[256], usr[128], hn[256];
+    Ppm pr;
+    int pageno, rc;
+    int status;
+    static const char trailer[] = "B\x1b%-12345X@PJL EOJ\n";
     if (argc < 6) {
         fprintf(stderr, "Usage: foo2sq21hbpl job-id user title copies options [file]\n");
         return 1;
     }
-    const char *user  = argv[2];
-    const char *title = argv[3];
-    int copies = atoi(argv[4]); if (copies < 1) copies = 1;
-    const char *opts  = argv[5];
-    const char *input = (argc > 6) ? argv[6] : "-";
+    user  = argv[2];
+    title = argv[3];
+    copies = atoi(argv[4]); if (copies < 1) copies = 1;
+    opts  = argv[5];
+    input = (argc > 6) ? argv[6] : "-";
 
     init_hpe0();
     signal(SIGPIPE, SIG_IGN);
 
     /* ---- options (argv[5]: "key=value key=value ...") ---- */
-    char pagesize[64] = "A4";
-    int dpi = 600;
-    int gray = 0;
     {
         char o[1024];
+        char *eq;
+        const char *val;
         snprintf(o, sizeof o, "%s", opts);
         for (char *tok = strtok(o, " \t"); tok; tok = strtok(NULL, " \t")) {
-            char *eq = strchr(tok, '=');
+            eq = strchr(tok, '=');
             if (!eq) continue;
             *eq = 0;
-            const char *val = eq + 1;
+            val = eq + 1;
             if (!strcmp(tok, "PageSize") || !strcmp(tok, "PageRegion"))
                 snprintf(pagesize, sizeof pagesize, "%s", val);
             else if (!strcmp(tok, "FXOutputMode")) {
@@ -389,82 +586,93 @@ int main(int argc, char **argv)
                 if (d > 0) dpi = d;
             } else if (!strcmp(tok, "FXColorMode"))
                 gray = (strcmp(val, "Color") != 0);
+            else if (!strcmp(tok, "FXDocumentType")) {
+                /* FXDLUT codes uit de PPD setpagedevice regels */
+                if (!strcmp(val, "Photo")) fxdlut = 22;
+                else if (!strcmp(val, "Presentation")) fxdlut = 26;
+                else if (!strcmp(val, "Web")) fxdlut = 23;
+                else if (!strcmp(val, "POP")) fxdlut = 32;
+                /* Normal (en default) = 24 */
+            }
         }
     }
 
+    /* ---- colour calibration (FXM_CC) ---- */
+    ce = getenv("FOO2SQ_CALIBRATE");
+    if (ce && (!strcmp(ce, "0") || !strcasecmp(ce, "no") || !strcasecmp(ce, "off")))
+        calibrate = 0;
+    dlut_path = getenv("FOO2SQ_DLUT");
+    if (!dlut_path || !*dlut_path)
+        dlut_path = "/usr/share/phaser6125/Phaser_6125N.dlut";
+    if (calibrate && !gray && dlut_load(dlut_path, fxdlut) != 0)
+        fprintf(stderr, "foo2sq21hbpl: dlut %s niet bruikbaar, alleen CST calibratie\n",
+                dlut_path);
+
     /* ---- PPD: PaperDimension + ImageableArea for the page size ---- */
-    const char *ppd = getenv("PPD");
+    ppd = getenv("PPD");
     if (!ppd || !*ppd) ppd = getenv("CUPS_PPD");
-    double pd[2] = { 595, 842 };                       /* A4 default */
-    double ia[4] = { 11.28, 11.28, 583.72, 830.72 };   /* left bottom right top, pt */
     if (ppd) {
         double v[4];
         if (ppd_lookup(ppd, pagesize, "PaperDimension", v, 2) == 2) { pd[0] = v[0]; pd[1] = v[1]; }
         if (ppd_lookup(ppd, pagesize, "ImageableArea", v, 4) == 4)
             { ia[0] = v[0]; ia[1] = v[1]; ia[2] = v[2]; ia[3] = v[3]; }
     }
-    double rr = dpi / 72.0;
-    double t;
+    rr = dpi / 72.0;
     t = floor(ia[0] * rr + 0.5);
-    int x0 = (int)t;                                  /* left   */
+    x0 = (int)t;                                  /* left   */
     t = floor(ia[2] * rr + 0.5);
-    int x1 = (int)t;                                  /* right  */
-    int img_w = x1 - x0;
+    x1 = (int)t;                                  /* right  */
+    img_w = x1 - x0;
     /* HBPL C-record margins: from the PPD paper height (like FXM_HBPL) */
     t = floor(ia[0] * rr + 0.5);
-    int marg_x = (int)t;
+    marg_x = (int)t;
     t = floor((pd[1] - ia[3]) * rr + 0.5);
-    int marg_y = (int)t;
+    marg_y = (int)t;
 
     /* ---- fork gs (the PS2PM stage) ---- */
-    int pfd[2];
     if (pipe(pfd)) { fprintf(stderr, "foo2sq21hbpl: pipe: %s\n", strerror(errno)); return 1; }
-    pid_t pid = fork();
+    pid = fork();
     if (pid < 0) { fprintf(stderr, "foo2sq21hbpl: fork: %s\n", strerror(errno)); return 1; }
     if (pid == 0) {
-        close(pfd[0]);
-        if (pfd[1] != 1) { dup2(pfd[1], 1); close(pfd[1]); }
         char r[16], wpt[40], hpt[40];
-        snprintf(r, sizeof r, "-r%d", dpi);
-        snprintf(wpt, sizeof wpt, "-dDEVICEWIDTHPOINTS=%d", (int)pd[0]);
-        snprintf(hpt, sizeof hpt, "-dDEVICEHEIGHTPOINTS=%d", (int)pd[1]);
+        char *in;
         /* execvp wants char *const[]; use mutable buffers so no casts are
          * needed (keeps -Wcast-qual / -Wwrite-strings happy) */
         static char GS[] = "gs", QUIET[] = "-dQUIET", PSAFER[] = "-dPARANOIDSAFER";
         static char NOPAUSE[] = "-dNOPAUSE", BATCH[] = "-dBATCH", NOMEDIA[] = "-dNOMEDIAATTRS";
         static char DEVP[] = "-sDEVICE=ppmraw", STDO[] = "-sstdout=%stderr";
         static char OUTF[] = "-sOUTPUTFILE=%stdout";
-        char *in = strdup(input);
+        close(pfd[0]);
+        if (pfd[1] != 1) { dup2(pfd[1], 1); close(pfd[1]); }
+        snprintf(r, sizeof r, "-r%d", dpi);
+        snprintf(wpt, sizeof wpt, "-dDEVICEWIDTHPOINTS=%d", (int)pd[0]);
+        snprintf(hpt, sizeof hpt, "-dDEVICEHEIGHTPOINTS=%d", (int)pd[1]);
+        in = strdup(input);
         if (!in) _exit(127);
-        char *g[] = { GS, QUIET, PSAFER, NOPAUSE, BATCH, NOMEDIA,
-                      DEVP, STDO, OUTF, r, wpt, hpt, in, NULL };
-        execvp("gs", g);
+        execvp("gs", (char *[]){ GS, QUIET, PSAFER, NOPAUSE, BATCH, NOMEDIA,
+                                 DEVP, STDO, OUTF, r, wpt, hpt, in, NULL });
         fprintf(stderr, "foo2sq21hbpl: cannot exec gs: %s\n", strerror(errno));
         _exit(127);
     }
     close(pfd[1]);
-    FILE *gsout = fdopen(pfd[0], "rb");
+    gsout = fdopen(pfd[0], "rb");
     if (!gsout) { fprintf(stderr, "foo2sq21hbpl: fdopen: %s\n", strerror(errno)); return 1; }
 
     /* ---- PJL header + A record ---- */
-    char hostname[256] = "localhost";
     gethostname(hostname, sizeof hostname - 1);
-    char ttl[256];
     snprintf(ttl, sizeof ttl, "%s", title);
     sanitize(ttl);
-    char usr[128];
     snprintf(usr, sizeof usr, "%s", user);
     sanitize(usr);
-    char hn[256];
     snprintf(hn, sizeof hn, "%s", hostname);
     sanitize(hn);
     {
         char date[16], tim[16];
         time_t now = time(NULL);
         struct tm *tm = localtime(&now);
+        FILE *out = stdout;
         strftime(date, sizeof date, "%m/%d/%Y", tm);
         strftime(tim, sizeof tim, "%H:%M:%S", tm);
-        FILE *out = stdout;
         fprintf(out, "\x1b%%-12345X@PJL COMMENT DATE=%s\n", date);
         fprintf(out, "@PJL COMMENT TIME=%s\n", tim);
         fprintf(out, "@PJL COMMENT DNAME=%s\n", ttl);
@@ -508,23 +716,28 @@ int main(int argc, char **argv)
     }
 
     /* ---- pages ---- */
-    Ppm pr; memset(&pr, 0, sizeof pr); pr.f = gsout;
-    int pageno = 0;
-    int rc;
+    memset(&pr, 0, sizeof pr); pr.f = gsout;
+    pageno = 0;
     while ((rc = ppm_next(&pr)) == 1) {
-        pageno++;
         int in_w = pr.w, in_h = pr.h;
+        double ty0, ty1;
+        int y0, y1, img_h, cx, cy, cw, ch, W4;
+        size_t stride;
+        unsigned char *img;
+        BitW payload;
+        FILE *out;
+        pageno++;
 
         /* PM2FXR crop rule (verified against the original filter):
          *   x0=round(left*r)  x1=round(right*r)
          *   y0=in_h-round(top*r)  y1=in_h-round(bottom*r)
          * pass through untouched when the input fits inside the imageable area */
-        double ty0 = floor(ia[3] * rr + 0.5);
-        double ty1 = floor(ia[1] * rr + 0.5);
-        int y0 = in_h - (int)ty0;
-        int y1 = in_h - (int)ty1;
-        int img_h = y1 - y0;
-        int cx = 0, cy = 0, cw = in_w, ch = in_h;
+        ty0 = floor(ia[3] * rr + 0.5);
+        ty1 = floor(ia[1] * rr + 0.5);
+        y0 = in_h - (int)ty0;
+        y1 = in_h - (int)ty1;
+        img_h = y1 - y0;
+        cx = 0; cy = 0; cw = in_w; ch = in_h;
         if (!(in_w <= img_w && in_h <= img_h)) {
             cx = x0 < 0 ? 0 : (x0 > in_w ? in_w : x0);
             cy = y0 < 0 ? 0 : (y0 > in_h ? in_h : y0);
@@ -533,11 +746,11 @@ int main(int argc, char **argv)
             if (cw < 0) cw = 0;
             if (ch < 0) ch = 0;
         }
-        int W4 = (cw + 7) & ~7;   /* FXM_ALC pads the width to a multiple of 8 */
+        W4 = (cw + 7) & ~7;   /* FXM_ALC pads the width to a multiple of 8 */
 
         /* image: (ch+1) rows x (W4+2) slots x 4 bytes; row 0 = all 0xff */
-        size_t stride = (size_t)(W4 + 2) * 4;
-        unsigned char *img = malloc(stride * (size_t)(ch + 1));
+        stride = (size_t)(W4 + 2) * 4;
+        img = (unsigned char *)malloc(stride * (size_t)(ch + 1));
         if (!img) { fprintf(stderr, "foo2sq21hbpl: out of memory (%dx%d)\n", W4, ch); return 1; }
         memset(img, 0xff, stride);
         /* skip the PPM rows above the crop region */
@@ -547,11 +760,12 @@ int main(int argc, char **argv)
                 return 1;
             }
         for (int y = 0; y < ch; y++) {
+            unsigned char *row;
             if (fread(pr.row, 3, (size_t)in_w, gsout) != (size_t)in_w) {
                 fprintf(stderr, "foo2sq21hbpl: short read from gs (row %d)\n", y);
                 return 1;
             }
-            unsigned char *row = img + stride * (size_t)(y + 1);
+            row = img + stride * (size_t)(y + 1);
             memset(row, 0xff, 4);                       /* left margin   */
             memset(row + (size_t)(W4 + 1) * 4, 0xff, 4); /* right sentinel */
             for (int x = 0; x < cw; x++) {
@@ -559,8 +773,20 @@ int main(int argc, char **argv)
                 unsigned char *d = row + (size_t)(x + 1) * 4;
                 d[0] = 0xff;
                 if (gray) {
-                    unsigned g = ((unsigned)s[0] + s[1] + s[2]) / 3;
-                    d[1] = d[2] = d[3] = (unsigned char)g;
+                    if (calibrate) {
+                        /* FXM_CC gray: NTSC over de CST output */
+                        unsigned char c[3];
+                        unsigned g;
+                        calib_cst(s, c);
+                        g = ((unsigned)c[0] * 77u + (unsigned)c[1] * 151u +
+                             (unsigned)c[2] * 28u) >> 8;
+                        d[1] = d[2] = d[3] = (unsigned char)g;
+                    } else {
+                        unsigned g = ((unsigned)s[0] + s[1] + s[2]) / 3;
+                        d[1] = d[2] = d[3] = (unsigned char)g;
+                    }
+                } else if (calibrate) {
+                    calib_pixel_cached(s, d + 1);
                 } else {
                     d[1] = s[0]; d[2] = s[1]; d[3] = s[2];
                 }
@@ -576,13 +802,12 @@ int main(int argc, char **argv)
             }
 
         /* sq21 encode */
-        BitW payload;
         bw_init(&payload);
         sq21_encode(&payload, W4, ch, img);
         free(img);
 
         /* HBPL page: C record + QR record + body + payload + "SD" */
-        FILE *out = stdout;
+        out = stdout;
         put_u16le(C_REC + 24, (unsigned)marg_x);
         put_u16le(C_REC + 26, (unsigned)marg_y);
         put_u32le(C_REC + 33, (unsigned)pageno);
@@ -608,11 +833,10 @@ int main(int argc, char **argv)
     }
 
     /* job trailer: 'B' + UEL + "@PJL EOJ\n" (19 bytes, byte-exact like FXM_HBPL) */
-    static const char trailer[] = "B\x1b%-12345X@PJL EOJ\n";
     fwrite(trailer, 1, sizeof trailer - 1, stdout);
     fflush(stdout);
 
-    int status = 0;
+    status = 0;
     fclose(gsout);
     if (waitpid(pid, &status, 0) < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
         fprintf(stderr, "foo2sq21hbpl: gs failed (status %d)\n", status);

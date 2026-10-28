@@ -10,12 +10,20 @@ For a given input + options:
      pad to a multiple of 8, and compare with the DECODED sq21 payload
      (must be byte-exact: the encoder is lossless)
 
+Colour calibration: with FOO2SQ_CALIBRATE on (the default) the driver applies
+the FXM_CC colour transform to every pixel before encoding.  The expected
+raster is then computed with the oracle re/calib.c (byte-exact model of the
+original 32-bit FXM_CC, proven against its ground truth): color pixels go
+through 3Dlut(CST(...)), gray pixels through NTSC(CST(...)).  With
+FOO2SQ_CALIBRATE=0 the driver is raw (or gray-averaged) and the expected
+raster is the unmodified gs output.
+
 Usage: verify-native.py <input.ps|pdf> "<options string>"
 """
 import struct, subprocess, sys, os, math, re, ctypes, time
 from concurrent.futures import ThreadPoolExecutor
 
-REPO = '/home/rick/src/phaser6125'
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO + '/re')
 # Fast C decoder/expander (re/sq21dec.c, shared lib built on demand);
 # falls back to the pure-Python sq21dec module if it cannot be built/loaded.
@@ -87,6 +95,35 @@ def expand_page(gpix, gw, gh, cx, cy, cw, ch, W4, gray):
             row += b'\xff\xff\xff\xff'
         exp += row
     return bytes(exp)
+
+_CALIB = None
+
+
+def _caliblib():
+    """Oracle voor de FXM_CC calibratie (re/calib.c, shared lib)."""
+    global _CALIB
+    if _CALIB is not None:
+        return _CALIB or None
+    path = REPO + '/re/libcalib.so'
+    if not os.path.exists(path):
+        subprocess.run(['gcc', '-O2', '-shared', '-fPIC', '-DCALIB_NO_MAIN',
+                        '-o', path, REPO + '/re/calib.c'],
+                       check=True, capture_output=True)
+    try:
+        lib = ctypes.CDLL(path)
+        lib.calib_load.restype = ctypes.c_int
+        lib.calib_load.argtypes = [ctypes.c_char_p, ctypes.c_int]
+        lib.calib_color.restype = None
+        lib.calib_color.argtypes = [ctypes.c_char_p, ctypes.c_char_p,
+                                    ctypes.c_size_t]
+        lib.calib_gray.restype = None
+        lib.calib_gray.argtypes = [ctypes.c_char_p, ctypes.c_char_p,
+                                   ctypes.c_size_t]
+        _CALIB = lib
+    except OSError:
+        _CALIB = False
+    return _CALIB or None
+
 
 DRIVER = REPO + '/native/foo2sq21hbpl'
 PPD = REPO + '/driver/Phaser_6125N.ppd'
@@ -192,6 +229,21 @@ def main():
     dpi = int(o.get('FXOutputMode', '600x600').split('x')[0])
     gray = o.get('FXColorMode', 'Color') != 'Color'
 
+    # colour calibration — mirrors the driver (FOO2SQ_CALIBRATE, default
+    # aan; FXDocumentType -> FXDLUT block code uit de PPD setpagedevice)
+    ce = os.environ.get('FOO2SQ_CALIBRATE', '')
+    calibrate = not (ce == '0' or ce.lower() in ('no', 'off'))
+    fxdlut = 24   # FXDocumentType Normal
+    dt = o.get('FXDocumentType')
+    if dt == 'Photo':
+        fxdlut = 22
+    elif dt == 'Presentation':
+        fxdlut = 26
+    elif dt == 'Web':
+        fxdlut = 23
+    elif dt == 'POP':
+        fxdlut = 32
+
     pd = ppd_lookup(PPD, pagesize, 'PaperDimension')
     ia = ppd_lookup(PPD, pagesize, 'ImageableArea')  # left bottom right top (pt)
     r = dpi / 72.0
@@ -200,6 +252,7 @@ def main():
 
     # 1. run the driver
     env = dict(os.environ, PPD=PPD)
+    env.setdefault('FOO2SQ_DLUT', REPO + '/driver/Phaser_6125N.dlut')
     p = subprocess.run([DRIVER, '1', 'rick', 'VerifyTest', '1', opts, inp],
                        capture_output=True, env=env)
     assert p.returncode == 0, 'driver failed: %s' % p.stderr[:500]
@@ -238,10 +291,45 @@ def main():
         assert pg['pageno'] == n + 1, 'pageno %d != %d' % (pg['pageno'], n + 1)
         plans.append((n, pg, gw, gh, gpix, cx, cy, cw, ch, W4))
 
+    # oracle voor de gekalibreerde verwachte raster (eenmalig laden; de
+    # LUT is read-only dus thread-safe voor de pool hieronder)
+    calib = None
+    if calibrate:
+        calib = _caliblib()
+        if calib is None:
+            print('WAARSCHUWING: re/libcalib.so niet beschikbaar — '
+                  'gekakalibreerde pixels worden NIET geverifieerd')
+        elif calib.calib_load(env['FOO2SQ_DLUT'].encode(), fxdlut) != 0 and not gray:
+            print('WAARSCHUWING: oracle dlut %s niet bruikbaar (CST-only)' %
+                  env['FOO2SQ_DLUT'])
+    if calibrate:
+        mode = ('gray NTSC(CST)' if gray else
+                'color 3Dlut(CST) fxdlut=%d' % fxdlut)
+    else:
+        mode = 'gray average' if gray else 'raw'
+    print('calibration: %s' % mode)
+
     def work(pl):
         n, pg, gw, gh, gpix, cx, cy, cw, ch, W4 = pl
         dec, bits, ntok = decode_page(pg['payload'], W4, ch)
-        exp = expand_page(gpix, gw, gh, cx, cy, cw, ch, W4, gray)
+        if calibrate and calib is not None:
+            npix = gw * gh
+            if gray:
+                # driver gray: NTSC(CST(in)) -> [g,g,g] per pixel
+                gbuf = ctypes.create_string_buffer(npix)
+                calib.calib_gray(gpix, gbuf, npix)
+                trip = bytearray(npix * 3)
+                trip[0::3] = gbuf.raw
+                trip[1::3] = gbuf.raw
+                trip[2::3] = gbuf.raw
+                exp = expand_page(bytes(trip), gw, gh, cx, cy, cw, ch, W4, 0)
+            else:
+                # driver color: 3Dlut(CST(in))
+                cbuf = ctypes.create_string_buffer(npix * 3)
+                calib.calib_color(gpix, cbuf, npix)
+                exp = expand_page(cbuf.raw, gw, gh, cx, cy, cw, ch, W4, 0)
+        else:
+            exp = expand_page(gpix, gw, gh, cx, cy, cw, ch, W4, gray)
         return n, exp == dec, ntok, len(pg['payload']), dec, exp, (cx, cy, cw, ch, W4)
 
     t0 = time.time()
