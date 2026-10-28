@@ -316,3 +316,69 @@ getest: stdin → byte-identieke HBPL stream als de directe filter.
 - FXM_SBP / FXM_PR details (gray / turnpage) niet gerepliceerd.
 - Officieuze chain is near-lossless; de onze is exact lossless.
 - CUPS draait filters als user `lp`; `/usr/lib/cups/filter` moet root:root 0755.
+
+## 10. USB (vanuit Windows of Linux)
+
+De Phaser 6125N heeft naast Ethernet een **USB 2.0 device-poort** (type B).
+De Windows driver INF (`analysis/windriver/…/fxhl2zi.inf`) matcht het device
+als `USBPRINT\FUJI_XEROXDocuPrint_13C9` — een **standaard USB Printing Class**
+device (Windows `usbprint.sys`), géén vendor-specifieke USB stack. Ook
+`LPTENUM\FUJI_XEROXDocuPrint_13C9` (parallelle poort) wordt ondersteund.
+Het PJL/HBPL-protocol werkt over USB identiek aan raw JetDirect (9100).
+(De INF is van de C525A — het zustermodel; de 6125N gebruikt dezelfde
+engine, maar de exacte USB-string kan `XEROX Phaser 6125…` zijn.)
+
+Drie routes, van snel/simpel naar "eigen driver end-to-end":
+
+### B. Raw USB vanuit Windows (aanbevolen — geen driver nodig)
+
+Windows hangt automatisch *USB Printing Support* (usbprint.sys) aan het
+device; de poort verschijnt als `USB001` (of USB002…). Onze filter genereert
+een complete PJL/HBPL stream — die stuur je raw naar de poort:
+
+1. USB A-B kabel printer → Windows PC; in Device Manager verschijnt
+   *USB Printing Support* onder *Universal Serial Bus devices*.
+2. Genereer de stream in WSL (Linux):
+   ```
+   cd /home/rick/src/phaser6125
+   PPD="$PWD/driver/Phaser_6125N-native.ppd" ./native/foo2sq21hbpl \
+       1 rick test 1 "PageSize=A4 FXOutputMode=600x600 FXColorMode=Color" \
+       tests/colorpage.pdf > /tmp/colorpage.hbpl
+   ```
+3. Kopieer naar Windows (bv. via `\\wsl$\Ubuntu\home\rick\…` → `C:\temp\`) en print:
+   ```
+   copy /b C:\temp\colorpage.hbpl \\.\USB001
+   ```
+
+### C. WSL2 + usbipd + CUPS usb:// (onze native driver, end-to-end)
+
+`usbipd` (gratis, `winget install usbipd`) richt een USB-device door naar
+WSL2; CUPS' usb backend (libusb) print dan met onze eigen driver:
+
+```
+# Windows (admin PowerShell)
+usbipd wsl list
+usbipd wsl attach --busid <busid>
+# in WSL
+lpinfo -v | grep usb          # geeft de usb:// URI
+sudo lpadmin -p Phaser6125N -v usb://FUJI_XEROX/DocuPrint_13C9
+```
+
+### A. Vendor Windows driver via USB (minst interessant voor dit project)
+
+De DPC525A DISM export (of de officiele Xerox 6125N Windows driver) kan via
+USB installeren (LanguageMonitor "SimpleMonitor", `fxhl2zi.inf`) — maar dat
+is "gewoon printen" met een driver uit 2012 (DriverVer 2.5.34.0), los van
+onze reverse-engineering.
+
+### Native Linux
+
+`scripts/print-direct-usb.sh <bestand.pdf|ps> [\"options\"]` — filter →
+`/dev/usb/lp0` (usblp kernel module; env `USB_DEVICE` override). In WSL2
+bestaat `/dev/usb/lp0` niet (usbipd presenteert het device via libusb) —
+daar is route C de manier.
+
+**Opgelet**: de printer is gedeeld — elke testpagina kost een pagina. Eerst
+het device checken (Device Manager / `lpinfo -v`), printen pas als het
+device confirmed is. Controleer eventueel in CentreWare IS
+(http://192.168.178.10, read-only) of de USB-poort ingeschakeld is.
