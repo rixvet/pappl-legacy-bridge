@@ -1,0 +1,146 @@
+
+=== DW_TAG_structure_type Sq21 (size=252) ===
+  +0x00 int width;
+  +0x04 int height;
+  +0x08 int dpi;
+  +0x0c int pixformat;
+  +0x10 int pub_pixoffset;
+  +0x14 int pub_pixsize;
+  +0x18 int priv_pixsize;
+  +0x1c int outpix;
+  +0x20 int zoffset;
+  +0x24 ?* pixbuf;
+  +0x28 ?* errbuf;
+  +0x2c unsigned* codebuf;
+  +0x30 int codebuf_len;
+  +0x34 unsigned bitbuf;
+  +0x38 int bitbuf_len;
+  +0x3c ?*[64] pix;
+  +0x44 ?*[64] err;
+  +0x4c Pred[64] pred;
+  +0x74 Order[64] order;
+  +0x88 Weight[64] weight;
+  +0x98 int line;
+  +0x9c int run;
+  +0xa0 int code;
+  +0xa4 int shift;
+  +0xa8 int hid;
+  +0xac Sq21NTable ntable;
+  +0xec Sq21NearesFunc* neares_func;
+  +0xf0 ?* neares_func_data;
+  +0xf4 Sq21CodeFunc* code_func;
+  +0xf8 ?* code_func_data;
+
+=== DW_TAG_structure_type __jmp_buf_tag (size=156) ===
+  +0x00 __jmp_buf __jmpbuf;
+  +0x18 int __mask_was_saved;
+  +0x1c __sigset_t __saved_mask;
+
+=== DW_TAG_structure_type Sq21 (size=252) ===
+  +0x00 int width;
+  +0x04 int height;
+  +0x08 int dpi;
+  +0x0c int pixformat;
+  +0x10 int pub_pixoffset;
+  +0x14 int pub_pixsize;
+  +0x18 int priv_pixsize;
+  +0x1c int outpix;
+  +0x20 int zoffset;
+  +0x24 ?* pixbuf;
+  +0x28 ?* errbuf;
+  +0x2c unsigned* codebuf;
+  +0x30 int codebuf_len;
+  +0x34 unsigned bitbuf;
+  +0x38 int bitbuf_len;
+  +0x3c ?*[64] pix;
+  +0x44 ?*[64] err;
+  +0x4c Pred[64] pred;
+  +0x74 Order[64] order;
+  +0x88 Weight[64] weight;
+  +0x98 int line;
+  +0x9c int run;
+  +0xa0 int code;
+  +0xa4 int shift;
+  +0xa8 int hid;
+  +0xac Sq21NTable ntable;
+  +0xec Sq21NearesFunc* neares_func;
+  +0xf0 ?* neares_func_data;
+  +0xf4 Sq21CodeFunc* code_func;
+  +0xf8 ?* code_func_data;
+
+=== DW_TAG_structure_type Sq21 (size=252) ===
+  +0x00 int width;
+  +0x04 int height;
+  +0x08 int dpi;
+  +0x0c int pixformat;
+  +0x10 int pub_pixoffset;
+  +0x14 int pub_pixsize;
+  +0x18 int priv_pixsize;
+  +0x1c int outpix;
+  +0x20 int zoffset;
+  +0x24 ?* pixbuf;
+  +0x28 ?* errbuf;
+  +0x2c unsigned* codebuf;
+  +0x30 int codebuf_len;
+  +0x34 unsigned bitbuf;
+  +0x38 int bitbuf_len;
+  +0x3c ?*[64] pix;
+  +0x44 ?*[64] err;
+  +0x4c Pred[64] pred;
+  +0x74 Order[64] order;
+  +0x88 Weight[64] weight;
+  +0x98 int line;
+  +0x9c int run;
+  +0xa0 int code;
+  +0xa4 int shift;
+  +0xa8 int hid;
+  +0xac Sq21NTable ntable;
+  +0xec Sq21NearesFunc* neares_func;
+  +0xf0 ?* neares_func_data;
+  +0xf4 Sq21CodeFunc* code_func;
+  +0xf8 ?* code_func_data;
+
+=== DW_TAG_structure_type _IO_FILE (size=148) ===
+  +0x00 int _flags;
+  +0x04 char* _IO_read_ptr;
+  +0x08 char* _IO_read_end;
+  +0x0c char* _IO_read_base;
+  +0x10 char* _IO_write_base;
+  +0x14 char* _IO_write_ptr;
+  +0x18 char* _IO_write_end;
+  +0x1c char* _IO_buf_base;
+  +0x20 char* _IO_buf_end;
+  +0x24 char* _IO_save_base;
+  +0x28 char* _IO_backup_base;
+  +0x2c char* _IO_save_end;
+  +0x30 _IO_marker* _markers;
+  +0x34 _IO_FILE* _chain;
+  +0x38 int _fileno;
+  +0x3c int _flags2;
+  +0x40 __off_t _old_offset;
+  +0x44 short _cur_column;
+  +0x46 signed _vtable_offset;
+  +0x47 char[64] _shortbuf;
+  +0x48 _IO_lock_t* _lock;
+  +0x4c __off64_t _offset;
+  +0x54 ?* __pad1;
+  +0x58 ?* __pad2;
+  +0x5c int _mode;
+  +0x60 char[64] _unused2;
+
+=== DW_TAG_structure_type _IO_marker (size=12) ===
+  +0x00 _IO_marker* _next;
+  +0x04 _IO_FILE* _sbuf;
+  +0x08 int _pos;
+
+=== DW_TAG_structure_type Rd21 (size=40) ===
+  +0x00 long width;
+  +0x04 long height;
+  +0x08 int blocksize;
+  +0x0c Rd21PixFormat pixformat;
+  +0x10 Rd21SelMode selmode;
+  +0x14 long rowbytes;
+  +0x18 long lineno;
+  +0x1c unsigned* linebuf;
+  +0x20 Rd21Callback callback;
+  +0x24 ?* userdata;

@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+    <HEAD>
+        <meta charset="utf-8" />
+        <TITLE> foo2zjs w/foo2hbpl1</TITLE>
+
+
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="revised" content="03/19/2023" />
+
+        <meta name="description" content=" Adding the foo2hpl1 driver to foo2zjs">
+        <style>
+html, body, dl, dt, dd, img {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    list-style: none;
+}
+
+        body {
+            background-color: black;
+            font-family: Arial, Helvetica, sans-serif;
+            max-width: 1000px;
+        }
+
+        .container {
+            padding-top: 1em;
+            margin-left: 15px;
+            margin-right: 15px;
+            background-color: #bbae98;
+            color: #000000;
+        }
+
+        .header {
+            position: sticky;
+            position: -webkit-sticky;
+            top: 0;
+            display: flex;
+            flex-wrap: wrap;
+            padding-top: 0.4em;
+            border-bottom: 1px solid black;
+            padding-right: 1em;
+            padding-left: 0.7em;
+            background-color: #000000;
+            color: lightgray;
+        }
+
+        .header a,
+    a:visited,
+    a:active {
+        color: lightgray;
+        text-decoration: none;
+    }
+
+    .header a:hover {
+        color: white;
+        background-color: black;
+        text-decoration: none;
+    }
+
+    .header img {
+        background: lightgrey;
+        text-decoration: none;
+    }
+
+    .header img:hover {
+        color: #ffffff;
+        background: white;
+        text-decoration: none;
+    }
+
+
+    .evenlyJustify {
+        width: 960px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+
+    .justify {
+        width: 960px;
+        display: flex;
+        justify-content: space-between;
+    }
+
+    h1 {
+        text-align: center;
+    }	   
+
+
+
+
+
+    table {border-collapse:collapse;}
+
+
+
+    td {
+        border: 1px solid black;
+        padding: 5px;
+        text-align:left; 
+        margin-left:auto; 
+        margin-right:auto; 
+
+    }
+
+
+    .printer_driver {
+        background-color: white;
+        padding-top: 1em;
+        padding-bottom: 2em;
+        padding-left: 1em;
+        padding-right: 1em;
+        border-bottom: 1px solid black;
+    }
+
+    .pdl {
+        background-color: white;
+        padding-top: 1em;
+        padding-bottom: 2em;
+        padding-left: 1em;
+        padding-right: 1em;
+        border-bottom: 1px solid black;
+    }
+
+    .printer_server {
+        background-color: white;
+        padding-top: 1em;
+        padding-bottom: 2em;
+        padding-left: 1em;
+        padding-right: 1em;
+        border-bottom: 1px solid black;
+    }
+
+    .microsoft_compatibility {
+        background-color: white;
+        padding-top: 1em;
+        padding-bottom: 2em;
+        padding-left: 1em;
+        padding-right: 1em;
+        border-bottom: 1px solid black;
+    }
+
+    .microsoft_compatibility li {
+        padding-bottom: 1em;
+    }
+
+    .HP_1320nw {
+        background-color: white;
+        padding-top: 1em;
+        padding-bottom: 2em;
+        padding-left: 1em;
+        padding-right: 1em;
+        border-bottom: 1px solid black;
+    }
+
+    .source_code {
+        background-color: white;
+        padding-top: 1em;
+        padding-bottom: 2em;
+        padding-left: 1em;
+        padding-right: 1em;
+        border-bottom: 1px solid black;
+    }
+
+
+    .diagram {
+        background-color: white;
+        padding-top: 1em;
+        padding-bottom: 2em;
+        padding-left: 1em;
+        padding-right: 1em;
+        border-bottom: 1px solid black;
+    }
+
+
+    .footer {
+        background-color: #ffffff;
+        padding-top: 1em;
+        padding-bottom: 1em;
+        padding-left: 1em;
+        padding-right: 1em;
+        border-bottom: 1px solid black;
+    }
+
+    .li_padding li {
+
+        padding-bottom: 1em;
+    }
+
+
+
+
+    .highlighted {
+        background-color: yellow;
+    }
+
+    .code {
+        color: white;
+        background-color: black;
+        padding-top: 1em;
+        padding-bottom: 1em;
+        padding-left: 1em;
+        padding-right: 1em;
+        border-bottom: 1px solid black;
+    }
+
+    .diagram img {
+        width: 100%;
+        height: 100%;
+    }
+
+
+
+        </style>
+
+
+    </HEAD>
+
+    <!-- ///////////////////////////// Add ////////////////////////////////////////
+
+    -->
+
+    <body>
+
+        <!-- ///////////////////////// Header Code /////////////////////////////////-->
+
+        <div class="header">
+            <div class="evenlyJustify">
+
+                <a href="../index.html">
+                    <img src="../Logos/Logo140-Low.png" style="height:50px; width: auto; padding-top:0px;margin-left:5px"
+                                                        alt="Electrical-Forenics Home">
+                </a>
+
+                <a href="mailto:ray@rayfranco.com" style="margin-top:1em;">ray@RayFranco.com&nbsp;</a>
+                <a href="tel:+1-601-529-7473" style="margin-top:1em;">
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;601.529.7473</a>
+                <!-- I do not know why, but when I tried padding her instead of all the non-breaking spaces,
+                    it would not do right on an iPhone X
+                -->
+            </div> <!-- end evenlyJustify-->
+        </div> <!-- end heater class -->
+
+        <div class="container">
+
+
+
+            <div style="margin-top:1em;margin-bottom:1em;">
+                &nbsp;&nbsp;&nbsp;&copy; Dr. Ray Franco, PhD, PE &nbsp;- &nbsp;208 Fairways Dr., Vicksburg, MS 39183
+            </div>
+            <!-- ///////////////////// End of Header /////////////////////////////////////// -->
+
+
+
+
+
+            <div class="printer_driver">
+                <p>Update on 03/19/2023.</p>
+
+                <h2> foo2zjs.rkkda.com</h2>
+                <p>  Foo2zjs is an open-source printer driver</p>
+                <p>  From 2002 until 2021, the source code was hosted at: http://foo2zjs.rkkda.com. 
+                     Almost all of the code was written by Rick Richardson with very few contributors.
+                    The name of the website comes from: rick, kathleen, Kelsey, dylan, abby. 
+                </p>
+                <p> Archives of http://foo2zjs.com are available at:
+                    <a href="https://web.archive.org/web/20210101000000*/http://foo2zjs.rkkda.com">
+                        WayBackMachine-foo2zjs.rikkda</a>. The last capture image was Jan 29, 2021.  
+                </p>
+                <p> 
+                    <ul>
+                        <li>1/29/21 <a href="">2021_01_29_foo2js_rkkda_com.tar.gz</a> size 8.5M bytes</li>
+                        <li>1/29/21 <a href="">2021_01_27_foo2js_rkkda_com.tar.gz</a> size 8.5M bytes</li>
+                        <li>1/29/21 <a href="">2020_12_01_foo2js_rkkda_com.tar.gz</a> size 1.2M bytes</li>
+                    </ul>
+                </p>
+                <p>Near the end, there was a dramatic increase in size of the compressed tar file. <b>Investigate this.</b></p>
+               
+                <p>Because the website is dead, Debian uses a foreign website that was a mirror image of it: <b>Add Link</b></p>
+
+                <h3>foo2zjs.rkkda.com with HBPLv1 - Dell 1250c, C1660 and C17560</h3>
+
+                <p> foo2zjs included a driver for version 2 of the Host Based Printer Languages (HBPLv2), foo2hbpl2. 
+                    However, it did not include a driver for version 1 of HBPL. In 2014, David Coffin wrote a driver
+                    for HBPLv1, foo2hbpl1 and Rick Richardson wrote the wrapper files for it. 
+                </p>
+                <p> The foo2hbpl1 driver added support for the following printers: Dell 1205c, C1660, C1760,
+                    Epson-AcuLaser_C1700, and Fuji-Xerox DocuPrint CP105b.
+                </p>
+                <p> Because of a bug, the foo2hbpl1 driver and its wrapper files were never included in any official releases
+                    at http://foo2zjs.rkkda.com.
+                </p>
+                <p></p>    
+                    However, David Coffin in an Internet article, <a href="https://www.dechifro.org/hbpl/">
+                    Using HBPL Printers in Linux</a>, provides a link to a modified foo2zjs package
+                    that does include the foo2hbpl1 driver, its wrapper files, and the printer PPD files. 
+                </p>
+                <p> Clicking this link will download the modified package: 
+                    <a href="https://www.dechifro.org/hbpl/foo2zjs.tar.xz">foo2zjs.tar.xy - modified version</a>
+                </p>	 
+
+                <h2> The "foo2hbpl1-wrapper.in" Bug </h2>
+                </p>
+                <p> The bug is not in the foo2hbpl1 driver, but in its wrapper file, "foo2hbpl1-wrapper.in". 
+                    A case statement in this file, is expecting a string value for
+                    the page size, but it receives a number value. The fix is to add the number values with an
+                    OR operator. 
+                </p>
+                <p> I believe this bug was first fixed in 2016 by Mark Nicholson when he added support for HBPLv1 to 
+                    Debian's foo2zjs (20160407dfsg0-1) package: 
+                </p>
+                <ul>
+                    <li><a href="https://launchpad.net/~nicholson-mark/+archive/ubuntu/ppa/+packages">
+                            https://launchpad.net/~nicholson-mark/+archive/ubuntu/ppa/+packages
+                    </li>
+                    <li> <a href="https://launchpadlibrarian.net/252181492/foo2zjs_20160407dfsg0-1_source.changes">
+                            https://launchpadlibrarian.net/252181492/foo2zjs_20160407dfsg0-1_source.changes</a>
+                    </li>
+                    <li>
+                        <a href="https://launchpadlibrarian.net/252181573/foo2zjs_20160406dfsg0-1_20160407dfsg0-1.diff.gz">
+                            https://launchpadlibrarian.net/252181573/foo2zjs_20160406dfsg0-1_20160407dfsg0-1.diff.gz</a> (Patch Code)
+                    </li>
+                </ul>
+                <p> Nicholson only built Debian i386 and amd64 packages.</p>
+
+                <p> However, Cees de Groot, in Canada, download Nicholson's source and patch code 
+                    from the above referenced, and he built Debian armhf (32-bit) packages for his Raspberry Pi 3. His website,
+                    "CUPS on Raspberry Pi for HBPL1": 
+                    "http://evrl.com/linux/2016/07/22/c1660w-rpi.html" is now dead,
+                    but the packages can still be downloaded via the Way Back Machine:
+                </p>
+
+                <a href="https://web.archive.org/web/20220113164134/http://evrl.com/linux/2016/07/22/c1660w-rpi.html">
+                    https://web.archive.org/web/20220113164134/http://evrl.com/linux/2016/07/22/c1660w-rpi.html
+                </a>
+
+                <p> I downloaded Cees de Groot's packages, and this was the first success that I had
+                    with my Dell C1760nw. 
+                </p>
+
+                </p>
+                <p> In 2018, the bug and its fix were rediscovered on the 
+                    <a href="https://forums.raspberrypi.com/viewtopic.php?t=73619&sid=e58de3022ce4daf7454f1cf9e933e74d&start=25">
+                        Raspberry Pi Forum - Dell C1760nw / Xerox Phaser 6000B - Page2</a>. 
+                </p>
+                <p> In 2020, the bug and its fix were again rediscovered,  
+                    <a href=https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=245128> bug (245128)</a>.
+                    This website clearly depicts what needs to be patched:
+                </p>
+                <a href="https://bugs.freebsd.org/bugzilla/attachment.cgi?id=212792&action=diff">
+                    The lines that need to be patched.</a>            
+
+                <p> Even though support for HBPLv1 printers never got rolled into any official releases at http://foo2zjs.rkkda.com,
+                    we are  fortunate that David Coffin published the code anyway.  Now others have fixed it.
+                </p>
+
+                <h3>Debians foo2zjs Package</h3>
+                    <p>
+                        foo2zjs.rkkda.com source files contain a Makefile. 
+                        It only takes two commands to compile and install the driver.
+                    </p>
+                    <p code>
+                        sudo make<br>
+                        sudo make install
+                    </p>
+                    <p> However, it takes considerably more work and expertise to convert the source files into a Debian binary package that can be distributed.
+                        Debian provides tools (software packages) for doing this: xxxxx. In the debian sub-directory, you must have a rules file,
+                        and a control file. In the control file, you name the package or packages that will be created. Then you,
+                        create input file(s) for the package(s) that you named in the control file. The input file(s) specify the files
+                        that will be installed and where to install them (the directories). 
+                    </p>
+                    <p>
+                        Debian's control file for foo2zjs has two packages:
+                        <ul>
+                            <li>printer-driver-foo2zjs-common</li>
+                            <li>printer-driver-foo2zjs</li>
+                        </ul>
+                        <p> The common package contains: wrapper files (script files), printer PPD's files and man page files. The other package contains, 
+                            the driver files, which are compiled binary executables that depend on the computer architecture and OS.
+                        </p>
+
+                    <p> This allows Debian to have a common package that is architecturally independence (the same regardless of the processor) 
+                        and an architecturally dependence package (changes depending on the processor (intel or arm) and the OS).
+                    </p>
+                    <p> Debian rule file for foo2zjs is very complex with lots of overrides. </p>
+                    <p> Therefore, Nicholson changed as little as he could. In the control file, he added a third package:</p>
+                    <ul>
+                        <li>printer-driver-foo2zjs-hbpl1</li>
+                    </ul>
+                    <p>and he added a corresponding input file for this package:</p>
+                    <ul>
+                        <li>printer-driver-foo2zjs-hbpl1.input</li>
+                    </ul>
+                    <p>that specified where to place the new driver foo2hbpl1, 
+                        its wrapper files, the added printer PPD files, and the added man pages.
+                    </p>
+                    <p> With Nicholson's approach, you have to install three packages.
+                        Cees de Groot used Nicholson's control and imput files to produce three packages for his Raspberry Pi 3:
+                    </p>
+                        <ul>
+                            <li>
+                              <a href="https://web.archive.org/web/20220113164134/http://evrl.com/deb/printer-driver-foo2zjs-common_20160407dfsg0-1_all.deb">
+                                printer-driver-foo2zjs-common_20160407dfsg0-1_all.deb</a>
+                            </li>
+                            <li>
+                              <a href="https://web.archive.org/web/20220113164134/http://evrl.com/deb/printer-driver-foo2zjs_20160407dfsg0-1_armhf.deb">
+                                printer-driver-foo2zjs_20160407dfsg0-1_armhf.deb</a>
+                            </li>
+                            <li>
+                              <a href="https://web.archive.org/web/20220113164134/http://evrl.com/deb/printer-driver-foo2zjs-hbpl1_20160407dfsg0-1_armhf.deb">
+                                printer-driver-foo2zjs-hbpl1_20160407dfsg0-1_armhf.deb</a>
+                            </li>
+                          </ul> 
+                    <p> Note, the armhf architecture specifies an ARM 32-bit processor with hardware floating point. His driver should only be installed on a 32-bit OS. 
+                    </p> 
+                    <p>I do not known exactly how or why Debian adds the date of the original package, 
+                        the dfsg package and the architecture code to the final package names. </p>    
+ 
+                    <p>This raises the question, if you use the exact same source files that Debian used, does this 
+                        change Debian's binaries: printer-driver-foo2zjs-common and/or printer-driver-foo2zjs. If not,
+                        you should be able to install Debian's standard foo2zjs package, and then just install
+                        the foo2zjs-hbpl1 package, and/or can you just install the foo2zjs-hbpl1 package without
+                        installing the other two packages.
+                    </p>
+
+
+                <h3>GitHub Repositories</h3>
+                <p>
+                    * Mark Nicholson's GitHub repository is active, 
+                    and the last changes he made to foo2zjs were in 2018:
+                    <a href="https://github.com/mark-nicholson/foo2zjs">
+                        https://github.com/mark-nicholson/foo2zjs
+                    </a>. There is a link in his repository to  <b>"Quality Improvements for HBPL1 Printers"</b>.
+                </p>
+
+                <p>
+                    * Gees de Groot's GitHub repository is active, 
+                    and the last changes he made to foo2zjs were in 2019:
+                    <a href="https://github.com/cdegroot/foo2zjs">
+                        https://github.com/cdegroot/foo2zjs
+                    </a> 
+                </p>
+
+                <p>
+                    mikerr's GitHub repository's appears to be David Coffin's modified foo2zjs.rkkda.com 
+                    package. However, mikerr did fix the bug in 2023: 
+                    <a href="https://github.com/mikerr/foo2zjs">https://github.com/mikerr/foo2zjs</a>
+                </p>
+
+                <p>
+                    koenkooi's GitHub repository's appears to a 2015 snap shot of foo2zjs.rkkda.com
+                    <a href="https://github.com/koenkooi/foo2zjs">https://github.com/koenkooi/foo2zjs</a>
+                </p>
+
+
+
+
+
+
+
+                <h3>Linux Distro's with foo2zjs</h3>
+                <p> This was an excellent open-source printer driver. It made its way into most Linux distributions: 
+                    Arch,  Debian, Ubuntu, RedHat, Fedora, SUSE, BSD, Gentoo, MacOSX, Mandrake/Manrivia and Xandros. 
+                    However, some of these distos do not support as many of the printers that were supported at http://foo2zjs.rddka.com.  
+                    The reason for this is copyrights and licenses. Debian not only wants the software to
+                    be open source but free from any present or future restrictions. Ubuntu is less restrictive, etc.    	
+                </p>
+            </div>
+
+            <div class="diagram">
+                <p> A Pictorial View of how foo2zjs.rddka.com works is below:: </p>
+                <img src="foo2zjs.png" alt="foo2zjs.png" />
+            </div>   
+
+
+
+
+
+            <div class = "footer"> 
+                <!-- HTML 4.0 Compliant -->
+
+                <p>&copy; Copyright Dr. Ray Franco, PhD, PE | 2006-2023. All rights reserved.</p>
+                <hr>
+
+                <img src="../Logos/no_tracking.png" alt="no tracking" style="height:50px; width: auto; margin-left : 15px">
+                <img src="../Logos/no_cookies.png" alt="no cookies" style="height:50px; width: auto; margin-left : 15px">
+                <img src="../Logos/no_finger_printing.png" alt="no finger printing" style="height:50px; width: auto; margin-left : 15px">
+                <!--
+                    <img src="../Logos/Google.png" alt="google logo" style="height:50px; width: auto; margin-left : 15px">
+                    <img src="../Logos/facebook.png" alt="facebook logo" style="height:50px; width: auto; margin-left : 15px">
+                    <img src="../Logos/twitter.png" alt="twitter logo" style="height:50px; width: auto; margin-left : 15px">
+                    <img src="../Logos/amazon.png" alt="amazon logo" style="height:50px; width: auto; margin-left : 15px">
+                    <img src="../Logos/microsoft.png" alt="microsoft logo" style="height:50px; width: auto; margin-left : 15px">
+                -->	
+
+                <a href="https://validator.w3.org/check?uri=referer">
+                    <img src="../Logos/valid-html401.gif"  alt="Valid HTML 4.01 Transitional" style="margin-left : 15px">
+                </a>
+
+                <a href="https://jigsaw.w3.org/css-validator//check/referer">
+                    <img src="../Logos/vcss.png" alt="Valid CSS!" style="margin-left : 15px">
+                </a> 
+
+
+
+
+            </div> <!-- end class footer -->
+
+
+
+        </div> <!-- Container Class -->
+
+
+
+        </Body>
+
+
+        </HTML>

@@ -1,17 +1,20 @@
 #!/bin/sh
-# Stuurt een testpagina naar de Phaser 6125N via CUPS.
-# Geen root nodig.
+# Stuurt een testpagina naar de Phaser 6125N via CUPS (native driver).
+# Geen root nodig. Met een argument: lp -d Phaser6125N <jouw-file>
 set -e
 PRINTER=Phaser6125N
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 
-if [ -f "$REPO/tests/testpage.pdf" ]; then
-    # PDF = de moderne pipeline (pdftopdf/pdftops -> FXM_PF -> HBPL)
+if [ $# -ge 1 ]; then
+    lp -d "$PRINTER" "$1"
+elif [ -f "$REPO/tests/colorpage.pdf" ]; then
+    # full colour/image torture page: titel, gekleurde tekst, meahow, kleurbalken,
+    # gradient, noise, schaakbord, hue-lijnen
+    lp -d "$PRINTER" "$REPO/tests/colorpage.pdf"
+elif [ -f "$REPO/tests/colorpage.ps" ]; then
+    lp -d "$PRINTER" "$REPO/tests/colorpage.ps"
+elif [ -f "$REPO/tests/testpage.pdf" ]; then
     lp -d "$PRINTER" "$REPO/tests/testpage.pdf"
-elif [ -f /usr/share/cups/data/default-testpage.pdf ]; then
-    lp -d "$PRINTER" /usr/share/cups/data/default-testpage.pdf
-elif [ -f /usr/share/cups/data/testprint ]; then
-    lp -d "$PRINTER" /usr/share/cups/data/testprint
 else
     lp -d "$PRINTER" "$REPO/tests/testpage.ps"
 fi

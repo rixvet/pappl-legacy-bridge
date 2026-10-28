@@ -1,5 +1,10 @@
 # Xerox Phaser 6125N — reverse engineering & CUPS revival
 
+> **Update:** de codec is inmiddels volledig gereverse-engineerd en er is een
+> werkende **native 64-bit CUPS driver** (`native/foo2sq21hbpl.c`) die de
+> printer printend houdt zonder 32-bit filters. Zie **`RE-NOTES.md`** voor het
+> sq21/HBPL formaat, de verificatie en de installatie.
+
 Source page: https://rickvanderzwet.nl/notes/XeroxPhaser6125N/
 Printer: Xerox Phaser 6125N @ 192.168.178.10 (web title confirms: "Phaser 6125N - Phaser 6125N-A717DF")
 

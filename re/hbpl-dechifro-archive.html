@@ -1,0 +1,84 @@
+<script type="text/javascript" src="https://web-static.archive.org/_static/js/bundle-playback.js?v=3grhEDQT" charset="utf-8"></script>
+<script type="text/javascript" src="https://web-static.archive.org/_static/js/wombat.js?v=o9P2E1FK" charset="utf-8"></script>
+<script>window.RufflePlayer=window.RufflePlayer||{};window.RufflePlayer.config={"autoplay":"on","unmuteOverlay":"hidden","showSwfDownload":true};</script>
+<script type="text/javascript" src="https://web-static.archive.org/_static/js/ruffle/ruffle.js"></script>
+<script type="text/javascript">
+    __wm.init("https://web.archive.org/web");
+  __wm.wombat("https://www.dechifro.org/hbpl/","20240119045126","https://web.archive.org/","web","https://web-static.archive.org/_static/",
+	      "1705639886");
+</script>
+<link rel="stylesheet" type="text/css" href="https://web-static.archive.org/_static/css/banner-styles.css?v=1utQkbB3" />
+<link rel="stylesheet" type="text/css" href="https://web-static.archive.org/_static/css/iconochive.css?v=3PDvdIFv" />
+<!-- End Wayback Rewrite JS Include -->
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Using HBPL printers in Linux</title>
+</head>
+<body>
+<a href="/web/20240119045126/https://www.dechifro.org/">Back to Dechifro's Home Page</a>
+<center>
+<h1>Using HBPL printers in Linux</h1>
+</center>
+This is a Linux driver I wrote for printers that use Host Based
+Printer Language version 1. You <em>cannot</em> use these printers
+in Linux without my driver. Known HBPLv1 printer models are:
+<ul>
+<li>Dell 1250c
+<li>Dell C1660w
+<li>Dell C1760nw
+<li>Epson AcuLaser C1700
+<li>Fuji-Xerox DocuPrint CP105b
+</ul>
+<p>
+There's also an HBPLv2, already supported in Linux, which
+compresses image data more efficiently. Less expensive printers
+tend to avoid version 2, either because it requires more processing
+power, or because it uses patented technology.
+<p>
+This list may be incomplete.  If the self-test page says "HBPL"
+but the printer won't work with Linux, it's probably version 1.
+To use an HBPLv1 printer, either download
+<a href="foo2zjs.tar.xz">this modified foo2zjs package</a>
+or apply
+<a href="hbpl1.patch">this patch</a>
+to the
+<a href="https://web.archive.org/web/20240119045126/http://foo2zjs.rkkda.com/">offical foo2zjs release</a>.
+<p>
+The essential commands are:
+<ul>
+<li><a href="foo2hbpl1.c">foo2hbpl1</a>
+to convert PBM, PGM, PPM, and PAM CMYK images to HBPLv1 format.
+<li><a href="foo2hbpl1-wrapper.in" < a>
+foo2hbpl1-wrapper</a>
+to convert Postscript and PDF documents to HBPLv1 format.
+<li><a href="hbpldecode.c">hbpldecode</a>
+to convert HBPL files, including those generated in other
+operating systems, to PGM or PPM images.
+</ul>
+<p>
+Images to print should be 5100x6600 pixels for US Letter paper or
+4961x7016 pixels for A4 paper. Resolution is always 600x600 dpi.
+Stay at least 50 pixels (2mm) away from the edges to avoid clipping.
+<p>
+Printing HBPL files is easy -- either "cat" them to the printer
+device (/dev/usb/lp0 in my case), or use the "lpr" command.
+</body></html>
+<!--
+     FILE ARCHIVED ON 04:51:26 Jan 19, 2024 AND RETRIEVED FROM THE
+     INTERNET ARCHIVE ON 22:01:51 Oct 27, 2026.
+     JAVASCRIPT APPENDED BY WAYBACK MACHINE, COPYRIGHT INTERNET ARCHIVE.
+
+     ALL OTHER CONTENT MAY ALSO BE PROTECTED BY COPYRIGHT (17 U.S.C.
+     SECTION 108(a)(3)).
+-->
+<!--
+playback timings (ms):
+  captures_list: 0.396
+  exclusion.robots: 0.037
+  exclusion.robots.policy: 0.03
+  esindex: 0.009
+  cdx.remote: 15.429
+  LoadShardBlock: 109.6 (3)
+  PetaboxLoader3.resolve: 75.334 (3)
+  PetaboxLoader3.datanode: 107.694 (4)
+  load_resource: 158.38
+-->

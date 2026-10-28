@@ -1,0 +1,93 @@
+
+##### CU: ../sysdeps/i386/elf/start.S
+
+##### CU: init.c
+
+##### CU: /usr/src/packages/BUILD/glibc-2.3/cc/csu/crti.S
+
+##### CU: sq21.c
+  0x804bb50   369 choose_encode_func                         file#1:16
+  0x804bcd0    81 write_integer                              file#1:207
+  0x804bd30   153 sq21_encode_header                         file#1:219
+  0x804bdd0    30 sq21_set_code_callback                     file#1:280
+  0x804bdf0    80 sq21_set_zpos                              file#1:288
+  0x804be40    67 sq21_set_ntable                            file#1:305
+  0x804be90    36 sq21_set_neares_callback                   file#1:271
+  0x804bec0    18 sq21_encode_end                            file#1:263
+  0x804bee0    85 sq21_encode_line                           file#1:250
+  0x804bf40    18 sq21_encode_start                          file#1:242
+  0x804bf60   117 sq21_free                                  file#1:193
+  0x804bfe0   518 sq21_new                                   file#1:99
+
+##### CU: sq21-environ.c
+  0x804c1f0    25 sq21_enable_feature                        file#1:295
+  0x804c210    20 sq21_disable_feature                       file#1:301
+  0x804c230   204 check_x86_os_feature                       file#1:121
+  0x804c300   150 sq21_get_feature                           file#1:288
+  0x804c3a0    18 sigill                                     file#1:28
+
+##### CU: sq21-encode.c
+  0x804c7a0    67 hire_sentinel                              file#2:22
+  0x804c7f0    10 fire_sentinel                              file#2:37
+  0x804c800   186 update_offset                              file#2:43
+  0x804c8c0    26 push_state                                 file#2:72
+  0x804c8e0    34 pop_state                                  file#2:80
+  0x804c910   471 update_hid                                 file#2:150
+  0x804caf0    35 sq21_encode_init                           file#2:350
+  0x804cb20   822 sq21_encode_finish                         file#2:362
+  0x804ce60   313 copy_line                                  file#2:88
+  0x804cfa0  2119 sq21_encode_line_888_no255_sse             file#2:338
+  0x804d7f0  2169 sq21_encode_line_888_no255_mmx             file#2:337
+  0x804e070  1778 sq21_encode_line_888_no255                 file#2:335
+  0x804e770  2333 sq21_encode_line_8_888_sse                 file#2:326
+  0x804f090  2365 sq21_encode_line_8_888_mmx                 file#2:325
+  0x804f9d0  1749 sq21_encode_line_8_888                     file#2:323
+  0x80500b0  2353 sq21_encode_line_888_8_sse                 file#2:314
+  0x80509f0  2399 sq21_encode_line_888_8_mmx                 file#2:313
+  0x8051350  1737 sq21_encode_line_888_8                     file#2:311
+  0x8051a20  1779 sq21_encode_line_8_3                       file#2:306
+  0x8052120  1779 sq21_encode_line_8_2                       file#2:301
+  0x8052820  2350 sq21_encode_line_8888_sse                  file#2:292
+  0x8053150  2398 sq21_encode_line_8888_mmx                  file#2:291
+  0x8053ab0  1733 sq21_encode_line_8888                      file#2:289
+  0x8054180  2097 sq21_encode_line_888_sse                   file#2:280
+  0x80549c0  2145 sq21_encode_line_888_mmx                   file#2:279
+  0x8055230  1730 sq21_encode_line_888                       file#2:277
+  0x8055900  1730 sq21_encode_line_88_sse                    file#2:268
+  0x8055fd0  1730 sq21_encode_line_88_mmx                    file#2:267
+  0x80566a0  1690 sq21_encode_line_88                        file#2:265
+  0x8056d40  1514 sq21_encode_line_8                         file#2:260
+
+##### CU: sq21-ntable.c
+  0x8057330   127 sq21_neares_func_original                  file#1:17
+  0x80573b0   171 sq21_neares_func_lowres_enhanced           file#1:35
+  0x8057460    29 sq21_neares_func_null                      file#1:52
+  0x8057480    78 sq21_ntable_fill                           file#1:101
+
+##### CU: sq21-huffman.c
+
+##### CU: rd21.c
+  0x80574d0    53 rd21_bytes_per_pixel                       file#1:21
+  0x8057510    20 rd21_set_callback                          file#1:120
+  0x8057530   506 rd21_process_line                          file#1:76
+  0x8057730    44 rd21_free                                  file#1:66
+  0x8057760   154 rd21_real_new                              file#1:40
+
+##### CU: rd21_block.c
+  0x8057fb0   478 sel_by_pred_and_average_nxn_8              file#1:381
+  0x8058190   815 sel_by_pred_and_average_nxn_8888           file#1:402
+  0x80584c0   359 sel_by_pred_and_average_nxn_X888           file#1:423
+  0x8058630   157 sel_by_tag_and_average_nxn_tarzan          file#1:458
+  0x80586d0   139 sel_by_tag_and_average_nxn_hakugin         file#1:493
+  0x8058760   156 sel_all_and_average_nxn_8                  file#1:514
+  0x8058800   262 sel_all_and_average_nxn_8888               file#1:544
+  0x8058910   266 sel_all_and_average_nxn_X888               file#1:580
+  0x8058a20   240 rd21_sel_all_and_average_8                 file#1:868
+  0x8058b10   240 rd21_sel_all_and_average_8888              file#1:888
+  0x8058c00  7683 rd21_process_lines                         file#1:932
+
+##### CU: elf-init.c
+  0x805aa10    98 __libc_csu_fini                            file#1:91
+  0x805aa80    88 __libc_csu_init                            file#1:61
+
+##### CU: /usr/src/packages/BUILD/glibc-2.3/cc/csu/crtn.S

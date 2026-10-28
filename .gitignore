@@ -4,3 +4,11 @@ analysis/tarball/
 analysis/windriver/
 test/
 tests/build/
+re/sq21dec
+re/libsq21dec.so
+native/foo2sq21hbpl
+analysis/dpc525/C525A_LinuxE/rpm/
+analysis/dpc525/C525A_LinuxE/Fuji_Xerox-DocuPrint_C525_A_AP-1.0-1.i386.rpm
+re/build/*
+!re/build/alc-*.sq21
+__pycache__/
