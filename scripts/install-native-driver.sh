@@ -1,6 +1,6 @@
 #!/bin/sh
 # Installs the NATIVE Xerox Phaser 6125N driver (foo2sq21hbpl) to:
-#   /usr/lib/cups/filter/foo2sq21hbpl              (64-bit ELF, built from native/foo2sq21hbpl.c)
+#   /usr/lib/cups/filter/foo2sq21hbpl              (64-bit ELF, built from native/foo2sq21hbpl.c + native/hbpl_core.c)
 #   /usr/share/cups/model/Xerox/en/Phaser_6125N-native.ppd
 #   /usr/share/phaser6125/Phaser_6125N.dlut       (colour calibration: FXM_CC CST + 3D LUT,
 #                                                   looked up by the filter; without this
@@ -16,13 +16,13 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 PRINTER=Phaser6125N
 
 echo "==> building filter (gcc, native 64-bit)"
-cc -O2 -Wall -Wextra -o /tmp/foo2sq21hbpl "$REPO/native/foo2sq21hbpl.c" -lm
+cc -O2 -Wall -Wextra -o /tmp/foo2sq21hbpl "$REPO/native/foo2sq21hbpl.c" "$REPO/native/hbpl_core.c" -lm
 file /tmp/foo2sq21hbpl
 if command -v clang >/dev/null 2>&1; then
     echo "==> clang -Weverything -Werror sanity check (report, not fatal;"
     echo "    -Wno-unsafe-buffer-usage = experimental C++ lint, see RE-NOTES §6)"
     if clang -Weverything -Werror -Wno-unsafe-buffer-usage -Wno-unknown-warning-option \
-            -O2 -o /tmp/foo2sq21hbpl-clang "$REPO/native/foo2sq21hbpl.c" -lm; then
+            -O2 -o /tmp/foo2sq21hbpl-clang "$REPO/native/foo2sq21hbpl.c" "$REPO/native/hbpl_core.c" -lm; then
         file /tmp/foo2sq21hbpl-clang
     else
         echo "NOTE: clang sanity check failed — the gcc build above is authoritative."

@@ -34,11 +34,11 @@ dpkg -l cups 2>/dev/null | grep ^ii | awk '{print "cups:", $3}'
 service cups start 2>/dev/null; sleep 2
 echo -n "scheduler: "; lpstat -r 2>&1
 echo "=== build driver (gcc -Wall -Wextra, fatal) ==="
-gcc -O2 -Wall -Wextra -o native/foo2sq21hbpl native/foo2sq21hbpl.c -lm && echo "gcc build OK"
+gcc -O2 -Wall -Wextra -o native/foo2sq21hbpl native/foo2sq21hbpl.c native/hbpl_core.c -lm && echo "gcc build OK"
 file native/foo2sq21hbpl | cut -c1-80
 echo "=== build driver (clang -Weverything -Werror, report) ==="
 if clang -Weverything -Werror -Wno-unsafe-buffer-usage -Wno-unknown-warning-option \
-        -O2 -o /tmp/foo2sq21hbpl-clang native/foo2sq21hbpl.c -lm 2>/tmp/clang-distro.log; then
+        -O2 -o /tmp/foo2sq21hbpl-clang native/foo2sq21hbpl.c native/hbpl_core.c -lm 2>/tmp/clang-distro.log; then
     echo "clang -Weverything -Werror: OK"
 else
     echo "clang -Weverything -Werror: FAILED (see /tmp/clang-distro.log)"

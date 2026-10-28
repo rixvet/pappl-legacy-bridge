@@ -16,7 +16,7 @@ OPTS="${2:-PageSize=A4 FXOutputMode=600x600 FXColorMode=Color}"
 
 # build the filter if it is not there yet
 if [ ! -x "$REPO/native/foo2sq21hbpl" ]; then
-    cc -O2 -Wall -Wextra -o "$REPO/native/foo2sq21hbpl" "$REPO/native/foo2sq21hbpl.c" -lm
+    cc -O2 -Wall -Wextra -o "$REPO/native/foo2sq21hbpl" "$REPO/native/foo2sq21hbpl.c" "$REPO/native/hbpl_core.c" -lm
 fi
 
 PPD="$REPO/driver/Phaser_6125N-native.ppd" \

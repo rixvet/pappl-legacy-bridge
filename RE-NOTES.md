@@ -76,7 +76,7 @@ Single interleaved bitstream, MSB-first.
 - `fxhl2z.xrs` = resources (page sizes/marges), `fxhl2z.cdd` = color data, `fxhl2zp1.icm` = ICC
 - Conclusie: bruikbaar als 64-bit reference, niet blockerend (crop offsets kwamen uit de PPD).
 
-## 6. Native driver (`native/foo2sq21hbpl.c`)
+## 6. Native driver (`native/foo2sq21hbpl.c` + `native/hbpl_core.c`)
 
 CUPS filter, libc only, native 64-bit (geen multilib). Interace zoals CUPS dat
 van filters verwacht: `foo2sq21hbpl job-id user title copies options [file]`,
@@ -107,13 +107,29 @@ Kleurcalibratie (standaard AAN; algoritme in §9, verificatie in §7):
 De encoder is **exact lossless** (de officieuze FXM_ALC is near-lossless, ±1-2 per
 pixel — beide zijn geldige streams; onze payload is ~0.8% groter).
 
+### Core split (hbpl_core.c / hbpl_core.h)
+
+Sinds de PAPPL-integratie (zie §12) is de encoder opgesplitst:
+native/hbpl_core.c bevat de complete pixel pipeline (sq21 codec, HBPL
+container, FXM_CC calibratie, PPM reader, PJL header, per-page processor,
+trailer) als herbruikbare library — pure C99 + stdio, geen POSIX.  De CUPS
+filter (native/foo2sq21hbpl.c) is nu alleen een dunne main(): CUPS argv
+parsen, gs forken, en de PPM stream door hbpl_page() leiden.  Dezelfde core
+wordt hergebruikt door:
+- win/hbblenc.c — standalone Windows tool (PPM stdin → HBPL stdout)
+- pappl/phaser6125-pappl.c — PAPPL printer application (MIME filter:
+  PDF → gs → PPM → hbpl_page() → device)
+
+Beide consumers zijn byte-identical geverifieerd (binary-identity regression
+tegen de geïnstalleerde CUPS filter).
+
 Build (schoon onder gcc -Wall -Wextra én clang -Weverything -Werror; getest
 op clang 14 t/m 21):
 
 ```
-gcc   -O2 -Wall -Wextra -o foo2sq21hbpl native/foo2sq21hbpl.c -lm
+gcc   -O2 -Wall -Wextra -o foo2sq21hbpl native/foo2sq21hbpl.c native/hbpl_core.c -lm
 clang -Weverything -Werror -Wno-unsafe-buffer-usage -Wno-unknown-warning-option \
-      -O2 -o foo2sq21hbpl native/foo2sq21hbpl.c -lm
+      -O2 -o foo2sq21hbpl native/foo2sq21hbpl.c native/hbpl_core.c -lm
 ```
 
 `-Wno-unsafe-buffer-usage`: clang's experimentele C++ bounds-safety lint

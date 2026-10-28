@@ -34,7 +34,7 @@ esac
 
 # build the filter if it is not there yet
 if [ ! -x "$FILTER" ]; then
-    cc -O2 -Wall -Wextra -o "$FILTER" "$REPO/native/foo2sq21hbpl.c" -lm
+    cc -O2 -Wall -Wextra -o "$FILTER" "$REPO/native/foo2sq21hbpl.c" "$REPO/native/hbpl_core.c" -lm
 fi
 
 # document from stdin to a temp file (the filter reads from a file)
