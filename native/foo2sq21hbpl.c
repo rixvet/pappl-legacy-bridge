@@ -44,7 +44,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-#include "cst_tables.h"   /* gegenereerd: CST_TRC / CST_ITRC / CST_M (FXM_CC) */
+#include "cst_tables.h"   /* generated: CST_TRC / CST_ITRC / CST_M (FXM_CC) */
 
 /* ------------------------------------------------------------------ */
 /* sq21 / HBPL1 ("XRC") codec — tables reverse engineered from FXM_ALC  */
@@ -99,7 +99,7 @@ static void init_hpe0(void)
 typedef struct {
     unsigned char *buf; size_t len, cap;
     unsigned long long acc; int nbits;
-    unsigned char pad[4];   /* expliciete tail padding (houdt -Wpadded stil) */
+    unsigned char pad[4];   /* explicit tail padding (keeps -Wpadded quiet) */
 } BitW;
 
 static void bw_init(BitW *b)
@@ -342,9 +342,9 @@ static uint32_t rd32be(const uint8_t *p)
            ((uint32_t)p[2] << 8) | (uint32_t)p[3];
 }
 
-/* Laad de 3D LUT block voor `fxdlut` (de FXDLUT waarde horend bij het
- * PPD FXDocumentType).  Retourneert 0 bij succes, -1 bij een onbruikbaar
- * bestand (de aanroeper valt dan terug op CST-only, zoals FXM_CC zelf). */
+/* Load the 3D LUT block for `fxdlut` (the FXDLUT value belonging to the
+ * PPD FXDocumentType).  Returns 0 on success, -1 on an unusable file
+ * (the caller then falls back to CST-only, like FXM_CC itself). */
 static int dlut_load(const char *path, int fxdlut)
 {
     FILE *f;
@@ -370,9 +370,9 @@ static int dlut_load(const char *path, int fxdlut)
     if (fread(b, 1, 4, f) != 4) goto out;            /* metadata count */
     metacount = rd32be(b);
     if (fxdlut < 0 || (uint32_t)fxdlut >= metacount) goto out;
-    if (fseek(f, (long)fxdlut * 4, SEEK_CUR) != 0) goto out;   /* naar meta[fxdlut] */
+    if (fseek(f, (long)fxdlut * 4, SEEK_CUR) != 0) goto out;   /* skip to meta[fxdlut] */
     if (fread(b, 1, 4, f) != 4) goto out;
-    block = rd32be(b);                      /* 1-based block nummer */
+    block = rd32be(b);                      /* 1-based block number */
     if (block < 1 || block > count) goto out;
     /* block data: offsets[block-1] + 8, 20420 bytes (768 curves + 17^3*4 LUT) */
     if (fseek(f, (long)offs[block - 1] + 8, SEEK_SET) != 0) goto out;
@@ -380,7 +380,7 @@ static int dlut_load(const char *path, int fxdlut)
     if (!raw) goto out;
     if (fread(raw, 1, 20420, f) != 20420) goto out;
     dlut_nodes = raw + 768;    /* 17^3 nodes x 4 bytes, [pad, out0, out1, out2] */
-    raw = NULL;                /* het blok blijft leven via dlut_nodes */
+    raw = NULL;                /* the block stays alive via dlut_nodes */
     rc = 0;
 out:
     free(raw);
@@ -409,8 +409,8 @@ static void calib_cst(const uint8_t in[3], uint8_t out[3])
 
 static void dlut_tetra(const uint8_t c[3], uint8_t out[3]);
 
-/* Volledige FXM_CC kleur transform: out = 3Dlut(CST(in)).
- * Zonder .dlut: alleen CST (zoals het origineel als het bestand ontbreekt). */
+/* Full FXM_CC colour transform: out = 3Dlut(CST(in)).
+ * Without .dlut: CST only (like the original when the file is missing). */
 static void calib_pixel(const uint8_t in[3], uint8_t out[3])
 {
     uint8_t c[3];
@@ -422,10 +422,10 @@ static void calib_pixel(const uint8_t in[3], uint8_t out[3])
     dlut_tetra(c, out);
 }
 
-/* Tetrahedral interpolatie in de 17^3 LUT (FXM_CC cil_3Dlut_Conv_sBGR).
+/* Tetrahedral interpolation in the 17^3 LUT (FXM_CC cil_3Dlut_Conv_sBGR).
  * Node index: i = c[2]>>4 (x289), j = c[1]>>4 (x17), k = c[0]>>4 (x1);
- * node bytes: [pad, out0, out1, out2].  De 4 gewichten zijn de verschillen
- * van de descending gesorteerde 4-bit fracties; ze sommen tot 16. */
+ * node bytes: [pad, out0, out1, out2].  The 4 weights are the differences
+ * of the descending-sorted 4-bit fractions; they sum to 16. */
 static void dlut_tetra(const uint8_t c[3], uint8_t out[3])
 {
     int base, w0, w1, w2, w3, s0, s1, s2;
@@ -438,7 +438,7 @@ static void dlut_tetra(const uint8_t c[3], uint8_t out[3])
     base = (c[2] >> 4) * 289 + (c[1] >> 4) * 17 + (c[0] >> 4);
     f[0] = c[2] & 0xf; f[1] = c[1] & 0xf; f[2] = c[0] & 0xf;
     d[0] = 289; d[1] = 17; d[2] = 1;
-    for (int a = 1; a < 3; a++) {           /* sorteer descending op fractie */
+    for (int a = 1; a < 3; a++) {           /* sort descending by fraction */
         int fv = f[a], dv = d[a], b = a - 1;
         while (b >= 0 && f[b] < fv) { f[b + 1] = f[b]; d[b + 1] = d[b]; b--; }
         f[b + 1] = fv; d[b + 1] = dv;
@@ -452,12 +452,12 @@ static void dlut_tetra(const uint8_t c[3], uint8_t out[3])
     s0 = w0 * n0[1] + w1 * nA[1] + w2 * nAB[1] + w3 * nABC[1];
     s1 = w0 * n0[2] + w1 * nA[2] + w2 * nAB[2] + w3 * nABC[2];
     s2 = w0 * n0[3] + w1 * nA[3] + w2 * nAB[3] + w3 * nABC[3];
-    out[0] = (uint8_t)(s0 >> 4);    /* gewichten sommen tot 16, dus s>>4 <= 255 */
+    out[0] = (uint8_t)(s0 >> 4);    /* weights sum to 16, so s>>4 <= 255 */
     out[1] = (uint8_t)(s1 >> 4);
     out[2] = (uint8_t)(s2 >> 4);
 }
 
-/* 1-pixel cache, zoals FXM_CC's main loop (de transform is puur). */
+/* 1-pixel cache, like FXM_CC's main loop (the transform is pure). */
 static void calib_pixel_cached(const uint8_t in[3], uint8_t out[3])
 {
     static uint32_t c_in = 0xffffffffu;
@@ -480,7 +480,7 @@ typedef struct {
     FILE *f;
     unsigned char *row;   /* w*3 bytes */
     int w, h, maxval;
-    int pad;              /* expliciete tail padding (houdt -Wpadded stil) */
+    int pad;              /* explicit tail padding (keeps -Wpadded quiet) */
 } Ppm;
 
 static int ppm_getc(FILE *f)   /* skips whitespace and # comments */
@@ -537,9 +537,9 @@ int main(int argc, char **argv)
     const char *ce, *dlut_path;
     char pagesize[64] = "A4";
     int copies, dpi = 600, gray = 0, calibrate = 1;
-    int fxdlut = 24;   /* FXDocumentType Normal (FXDLUT code uit de PPD) */
-    /* Variabelen voor de secties hieronder: bovenaan gedeclareerd zodat
-     * er geen declaratie-na-statement meer in de body staat
+    int fxdlut = 24;   /* FXDocumentType Normal (FXDLUT code from the PPD) */
+    /* Variables for the sections below: declared at the top so there are
+     * no declarations after statements in the body
      * (clang -Wdeclaration-after-statement). */
     const char *ppd;
     double pd[2] = { 595, 842 };                      /* A4 default, pt */
@@ -587,12 +587,12 @@ int main(int argc, char **argv)
             } else if (!strcmp(tok, "FXColorMode"))
                 gray = (strcmp(val, "Color") != 0);
             else if (!strcmp(tok, "FXDocumentType")) {
-                /* FXDLUT codes uit de PPD setpagedevice regels */
+                /* FXDLUT codes from the PPD setpagedevice rules */
                 if (!strcmp(val, "Photo")) fxdlut = 22;
                 else if (!strcmp(val, "Presentation")) fxdlut = 26;
                 else if (!strcmp(val, "Web")) fxdlut = 23;
                 else if (!strcmp(val, "POP")) fxdlut = 32;
-                /* Normal (en default) = 24 */
+                /* Normal (and default) = 24 */
             }
         }
     }
@@ -605,7 +605,7 @@ int main(int argc, char **argv)
     if (!dlut_path || !*dlut_path)
         dlut_path = "/usr/share/phaser6125/Phaser_6125N.dlut";
     if (calibrate && !gray && dlut_load(dlut_path, fxdlut) != 0)
-        fprintf(stderr, "foo2sq21hbpl: dlut %s niet bruikbaar, alleen CST calibratie\n",
+        fprintf(stderr, "foo2sq21hbpl: dlut %s unusable, CST calibration only\n",
                 dlut_path);
 
     /* ---- PPD: PaperDimension + ImageableArea for the page size ---- */
@@ -774,7 +774,7 @@ int main(int argc, char **argv)
                 d[0] = 0xff;
                 if (gray) {
                     if (calibrate) {
-                        /* FXM_CC gray: NTSC over de CST output */
+                        /* FXM_CC gray: NTSC over the CST output */
                         unsigned char c[3];
                         unsigned g;
                         calib_cst(s, c);

@@ -1,53 +1,53 @@
-/* calib.c — oracle voor de FXM_CC kleurcalibratie (CST + 3D DLUT), om de
- * native driver (native/foo2sq21hbpl.c) end-to-end te verifiëren tegen de
- * oorspronkelijke 32-bit FXM_CC binary.
+/* calib.c — oracle for the FXM_CC colour calibration (CST + 3D DLUT), to
+ * verify the native driver (native/foo2sq21hbpl.c) end-to-end against the
+ * original 32-bit FXM_CC binary.
  *
- * Onafhankelijke implementatie van het byte-exact model uit
- * re/verify_model.c (bewezen tegen ground truth: synth.fxr -> synth-cc.fxr,
- * alle 256^3 kleuren, 0 mismatches), maar lezend uit het .dlut bestand
- * (zoals de driver) in plaats van uit de gdb memory dump.
+ * Independent implementation of the byte-exact model from
+ * re/verify_model.c (proven against ground truth: synth.fxr -> synth-cc.fxr,
+ * all 256^3 colours, 0 mismatches), but reading from the .dlut file
+ * (like the driver) instead of from the gdb memory dump.
  *
- * File vs memory (bewezen, zie RE-NOTES.md §9): FXM_CC bewaart elke 4-byte
- * node reversed in het geheugen:  dump node = [out2, out1, out0, pad],
- * file node = [pad, out0, out1, out2].  De model-mapping in dump-termen
- * (out0 <- dump[2], out1 <- dump[1], out2 <- dump[0]) is in file-termen:
+ * File vs memory (proven, see RE-NOTES.md §9): FXM_CC stores every 4-byte
+ * node reversed in memory:  dump node = [out2, out1, out0, pad],
+ * file node = [pad, out0, out1, out2].  The model mapping in dump terms
+ * (out0 <- dump[2], out1 <- dump[1], out2 <- dump[0]) is in file terms:
  * out0 <- file[1], out1 <- file[2], out2 <- file[3].
  *
- * Pipeline (uit de Ghidra decompilatie van FXM_CC main):
- *   color: out = 3Dlut(CST(in))    (CST eerst, dáárna de tetrahedral LUT)
+ * Pipeline (from the Ghidra decompilation of FXM_CC main):
+ *   color: out = 3Dlut(CST(in))    (CST first, then the tetrahedral LUT)
  *   gray : out = NTSC(CST(in))     (0.30/0.59/0.11 == integer 77/151/28 >> 8)
  *   CST  : gamma-2.2 TRC (8->16 bit) -> 3x3 matrix signed Q16
  *          (((M[i]>>2)*v ...) >> 18 == m*v/16, 16->12 bit) -> clamp [0,0xfff]
- *          -> inverse TRC (12->8 bit).  Tabellen: native/cst_tables.h
- *          (gegenereerd uit de FXM_CC ELF, geverifieerd tegen de dump).
+ *          -> inverse TRC (12->8 bit).  Tables: native/cst_tables.h
+ *          (generated from the FXM_CC ELF, verified against the dump).
  *   3Dlut: tetrahedral 17^3.  Node index (c2>>4)*289 + (c1>>4)*17 + (c0>>4);
- *          fracties f = c&0xf, descending sort; weights w0=16-f[0],
- *          w1=f[0]-f[1], w2=f[1]-f[2], w3=f[2] (sommen tot 16); nodes
- *          base / base+d[0] / base+d[0]+d[1] / base+307 (c111); resultaat
+ *          fractions f = c&0xf, descending sort; weights w0=16-f[0],
+ *          w1=f[0]-f[1], w2=f[1]-f[2], w3=f[2] (sum to 16); nodes
+ *          base / base+d[0] / base+d[0]+d[1] / base+307 (c111); result
  *          (sum w*node)>>4.  White shortcut: (c0&c1&c2)==0xff -> 255,255,255.
  *
- * .dlut block-selectie: FXDocumentType -> FXDLUT (PPD setpagedevice) ->
- * meta[FXDLUT] = 1-based blocknummer; block data op offsets[block-1]+8,
- * 20420 bytes = 768 ongebruikte 1D curves + 17^3 nodes x 4 bytes.
- * Uit meta[] van driver/Phaser_6125N.dlut: Normal 24 -> block 3,
+ * .dlut block selection: FXDocumentType -> FXDLUT (PPD setpagedevice) ->
+ * meta[FXDLUT] = 1-based block number; block data at offsets[block-1]+8,
+ * 20420 bytes = 768 unused 1D curves + 17^3 nodes x 4 bytes.
+ * From meta[] of driver/Phaser_6125N.dlut: Normal 24 -> block 3,
  * Photo 22 -> block 1, Presentation 26 -> block 5, Web 23 -> block 2,
  * POP 32 -> block 11.
  *
- * Export (shared lib, voor re/verify-native.py):
- *   int  calib_load(const char *path, int fxdlut);  0 = ok, -1 = onbruikbaar
+ * Export (shared lib, for re/verify-native.py):
+ *   int  calib_load(const char *path, int fxdlut);  0 = ok, -1 = unusable
  *   void calib_color(const uint8_t *in, uint8_t *out, size_t n);  3n -> 3n
  *   void calib_gray (const uint8_t *in, uint8_t *out, size_t n);  3n -> n
- *   Zonder calib_load: CST-only (zoals de driver als het .dlut ontbreekt).
+ *   Without calib_load: CST-only (like the driver when the .dlut is missing).
  *
- * Standalone (ground-truth cross-check, vanaf de repo root):
+ * Standalone (ground-truth cross-check, from the repo root):
  *   calib in.fxr out.fxr [--gray] [--fxdlut N] [--dlut path]
  *   FXR = 44-byte header (11 x u32le) + W*H*3 pixels (24bpp in).
- *   Color out: 24bpp, header gekopieerd van de input.  Gray out: 8bpp,
- *   1 byte per pixel (bpp=8 in de header, zoals gray-out.fxr).
+ *   Color out: 24bpp, header copied from the input.  Gray out: 8bpp,
+ *   1 byte per pixel (bpp=8 in the header, like gray-out.fxr).
  *   Env: FXDLUT (default 24 = Normal), FOO2SQ_DLUT
  *        (default driver/Phaser_6125N.dlut).
  *
- * Bouw:  gcc -O2 -Wall -Wextra -o re/build/calib re/calib.c
+ * Build:  gcc -O2 -Wall -Wextra -o re/build/calib re/calib.c
  *        gcc -O2 -Wall -Wextra -shared -fPIC -DCALIB_NO_MAIN \
  *            -o re/libcalib.so re/calib.c
  */
@@ -67,8 +67,8 @@ static uint32_t rd32be(const uint8_t *p)
            ((uint32_t)p[2] << 8) | (uint32_t)p[3];
 }
 
-/* Laad de 3D LUT block voor `fxdlut` uit het .dlut bestand.
- * Retourneert 0 bij succes, -1 bij een onbruikbaar bestand. */
+/* Load the 3D LUT block for `fxdlut` from the .dlut file.
+ * Returns 0 on success, -1 on an unusable file. */
 int calib_load(const char *path, int fxdlut)
 {
     FILE *f = fopen(path, "rb");
@@ -88,9 +88,9 @@ int calib_load(const char *path, int fxdlut)
     if (fread(b, 1, 4, f) != 4) goto fail;          /* metadata count */
     metacount = rd32be(b);
     if (fxdlut < 0 || (uint32_t)fxdlut >= metacount) goto fail;
-    if (fseek(f, (long)fxdlut * 4, SEEK_CUR) != 0) goto fail;  /* naar meta[fxdlut] */
+    if (fseek(f, (long)fxdlut * 4, SEEK_CUR) != 0) goto fail;  /* skip to meta[fxdlut] */
     if (fread(b, 1, 4, f) != 4) goto fail;
-    block = rd32be(b);                             /* 1-based block nummer */
+    block = rd32be(b);                             /* 1-based block number */
     if (block < 1 || block > count) goto fail;
     /* block data: offsets[block-1] + 8, 20420 bytes (768 curves + 17^3*4 LUT) */
     if (fseek(f, (long)offs[block - 1] + 8, SEEK_SET) != 0) goto fail;
@@ -128,9 +128,9 @@ static void cst(const uint8_t in[3], uint8_t out[3])
     out[2] = CST_ITRC[o2];
 }
 
-/* Tetrahedral interpolatie in de 17^3 LUT (FXM_CC 3Dlut, file byte order:
- * node bytes [pad, out0, out1, out2]).  De 4 gewichten zijn de verschillen
- * van de descending gesorteerde 4-bit fracties; ze sommen tot 16. */
+/* Tetrahedral interpolation in the 17^3 LUT (FXM_CC 3Dlut, file byte order:
+ * node bytes [pad, out0, out1, out2]).  The 4 weights are the differences
+ * of the descending-sorted 4-bit fractions; they sum to 16. */
 static void tetra(const uint8_t c[3], uint8_t out[3])
 {
     int base, w0, w1, w2, w3, s0, s1, s2;
@@ -143,7 +143,7 @@ static void tetra(const uint8_t c[3], uint8_t out[3])
     base = (c[2] >> 4) * 289 + (c[1] >> 4) * 17 + (c[0] >> 4);
     f[0] = c[2] & 0xf; f[1] = c[1] & 0xf; f[2] = c[0] & 0xf;
     d[0] = 289; d[1] = 17; d[2] = 1;
-    for (int a = 1; a < 3; a++) {           /* sorteer descending op fractie */
+    for (int a = 1; a < 3; a++) {           /* sort descending by fraction */
         int fv = f[a], dv = d[a], b = a - 1;
         while (b >= 0 && f[b] < fv) { f[b + 1] = f[b]; d[b + 1] = d[b]; b--; }
         f[b + 1] = fv; d[b + 1] = dv;
@@ -157,13 +157,13 @@ static void tetra(const uint8_t c[3], uint8_t out[3])
     s0 = w0 * n0[1] + w1 * nA[1] + w2 * nAB[1] + w3 * nABC[1];
     s1 = w0 * n0[2] + w1 * nA[2] + w2 * nAB[2] + w3 * nABC[2];
     s2 = w0 * n0[3] + w1 * nA[3] + w2 * nAB[3] + w3 * nABC[3];
-    out[0] = (uint8_t)(s0 >> 4);    /* gewichten sommen tot 16, dus s>>4 <= 255 */
+    out[0] = (uint8_t)(s0 >> 4);    /* weights sum to 16, so s>>4 <= 255 */
     out[1] = (uint8_t)(s1 >> 4);
     out[2] = (uint8_t)(s2 >> 4);
 }
 
-/* Volledige FXM_CC kleur transform: out = 3Dlut(CST(in)).
- * Zonder .dlut: alleen CST (zoals het origineel als het bestand ontbreekt). */
+/* Full FXM_CC colour transform: out = 3Dlut(CST(in)).
+ * Without .dlut: CST only (like the original when the file is missing). */
 void calib_color(const uint8_t *in, uint8_t *out, size_t n)
 {
     for (size_t i = 0; i < n; i++, in += 3, out += 3) {
@@ -178,7 +178,7 @@ void calib_color(const uint8_t *in, uint8_t *out, size_t n)
 }
 
 /* Gray transform: out = NTSC(CST(in)), 1 byte per pixel
- * (0.30/0.59/0.11 == integer 77/151/28, >> 8 — geverifieerd tegen
+ * (0.30/0.59/0.11 == integer 77/151/28, >> 8 — verified against
  * gray-test.fxr -> gray-out.fxr). */
 void calib_gray(const uint8_t *in, uint8_t *out, size_t n)
 {
@@ -205,17 +205,17 @@ static void wr32le(uint8_t *p, uint32_t v)
 
 int main(int argc, char **argv)
 {
-    const char *fin = NULL, *fout = NULL, *dlut = NULL;
+    const char *in_path = NULL, *out_path = NULL, *dlut = NULL;
     int gray = 0, fxdlut = -1;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--gray")) gray = 1;
         else if (!strcmp(argv[i], "--fxdlut") && i + 1 < argc) fxdlut = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--dlut") && i + 1 < argc) dlut = argv[++i];
-        else if (!fin) fin = argv[i];
-        else if (!fout) fout = argv[i];
-        else { fprintf(stderr, "calib: onverwacht argument %s\n", argv[i]); return 1; }
+        else if (!in_path) in_path = argv[i];
+        else if (!out_path) out_path = argv[i];
+        else { fprintf(stderr, "calib: unexpected argument %s\n", argv[i]); return 1; }
     }
-    if (!fin || !fout) {
+    if (!in_path || !out_path) {
         fprintf(stderr, "usage: calib in.fxr out.fxr [--gray] [--fxdlut N] [--dlut path]\n");
         return 1;
     }
@@ -226,19 +226,19 @@ int main(int argc, char **argv)
         fxdlut = e ? atoi(e) : 24;   /* Normal */
     }
     if (calib_load(dlut, fxdlut) != 0 && !gray)
-        fprintf(stderr, "calib: dlut %s niet bruikbaar, alleen CST calibratie\n", dlut);
+        fprintf(stderr, "calib: dlut %s unusable, CST calibration only\n", dlut);
 
     /* FXR in: 44-byte header + W*H*3 pixels (24bpp) */
-    FILE *f = fopen(fin, "rb");
+    FILE *f = fopen(in_path, "rb");
     uint8_t hdr[44];
-    if (!f) { perror(fin); return 1; }
-    if (fread(hdr, 1, 44, f) != 44) { fprintf(stderr, "calib: %s te kort\n", fin); return 1; }
+    if (!f) { perror(in_path); return 1; }
+    if (fread(hdr, 1, 44, f) != 44) { fprintf(stderr, "calib: %s too short\n", in_path); return 1; }
     uint32_t w = rd32le(hdr), h = rd32le(hdr + 4), bpp = rd32le(hdr + 8);
-    if (bpp != 24) { fprintf(stderr, "calib: %s bpp=%u != 24\n", fin, bpp); return 1; }
+    if (bpp != 24) { fprintf(stderr, "calib: %s bpp=%u != 24\n", in_path, bpp); return 1; }
     size_t npix = (size_t)w * h;
     uint8_t *px = (uint8_t *)malloc(npix * 3);
     if (!px || fread(px, 1, npix * 3, f) != npix * 3) {
-        fprintf(stderr, "calib: %s pixel data te kort\n", fin);
+        fprintf(stderr, "calib: %s pixel data too short\n", in_path);
         return 1;
     }
     fclose(f);
@@ -246,8 +246,8 @@ int main(int argc, char **argv)
            w, h, npix, gray ? "gray (NTSC over CST)" : "color (3Dlut over CST)",
            fxdlut, dlut);
 
-    FILE *o = fopen(fout, "wb");
-    if (!o) { perror(fout); return 1; }
+    FILE *o = fopen(out_path, "wb");
+    if (!o) { perror(out_path); return 1; }
     if (gray) {
         uint8_t *g = (uint8_t *)malloc(npix);
         if (!g) { fprintf(stderr, "calib: out of memory\n"); return 1; }
@@ -267,7 +267,7 @@ int main(int argc, char **argv)
     }
     fclose(o);
     free(px);
-    printf("calib: %s geschreven\n", fout);
+    printf("calib: %s written\n", out_path);
     return 0;
 }
 #endif /* CALIB_NO_MAIN */

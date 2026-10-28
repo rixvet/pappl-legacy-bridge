@@ -1,16 +1,16 @@
-/* verify_model.c — byte-exact model van de FXM_CC color-conversion stage
- * (CST gamma-2.2 roundtrip + tetrahedral 3D LUT), geverifieerd tegen de
- * ground truth synth.fxr -> synth-cc.fxr (alle 256^3 kleuren).
+/* verify_model.c — byte-exact model of the FXM_CC color-conversion stage
+ * (CST gamma-2.2 roundtrip + tetrahedral 3D LUT), verified against the
+ * ground truth synth.fxr -> synth-cc.fxr (all 256^3 colours).
  *
- * Params komen uit live dumps van de originele 32-bit binary (gdb):
+ * Params come from live dumps of the original 32-bit binary (gdb):
  *   re/build/cst-param.bin   1684 B  (3x TRC u16[256] @ +0/+0x200/+0x400,
  *                                      3x3 matrix int32 @ +0x600, status +0x62c,
  *                                      flag +0x690)
  *   re/build/dlut-param.bin  20420 B (curves 768 B @ +0, 17^3 LUT u32 @ +0x300)
  *   re/build/xyz2srgbtrc.bin 4096 B  (inverse TRC, 12-bit index -> 8-bit)
  *
- * Bouw:  gcc -O2 -Wall -Wextra -o re/build/verify_model re/verify_model.c
- * Run:   ./re/build/verify_model [in.fxr out.fxr]   (vanaf de repo root;
+ * Build:  gcc -O2 -Wall -Wextra -o re/build/verify_model re/verify_model.c
+ * Run:   ./re/build/verify_model [in.fxr out.fxr]   (from the repo root;
  *          default: synth.fxr / synth-cc.fxr)
  */
 #include <stdio.h>
@@ -36,14 +36,14 @@ static uint32_t rd32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v;
 
 int main(int argc, char **argv)
 {
-    const char *fin  = (argc > 1) ? argv[1] : "re/build/synth.fxr";
-    const char *fout = (argc > 2) ? argv[2] : "re/build/synth-cc.fxr";
+    const char *in_path  = (argc > 1) ? argv[1] : "re/build/synth.fxr";
+    const char *out_path = (argc > 2) ? argv[2] : "re/build/synth-cc.fxr";
     size_t n;
     uint8_t *cst  = readfile("re/build/cst-param.bin", &n);
     uint8_t *dlu  = readfile("re/build/dlut-param.bin", &n);
     uint8_t *itrc = readfile("re/build/xyz2srgbtrc.bin", &n);
-    uint8_t *sin  = readfile(fin, &n);
-    uint8_t *sout = readfile(fout, &n);
+    uint8_t *sin  = readfile(in_path, &n);
+    uint8_t *sout = readfile(out_path, &n);
 
     const uint16_t *trc0 = (const uint16_t *)(cst + 0x000);
     const uint16_t *trc1 = (const uint16_t *)(cst + 0x200);
@@ -88,7 +88,7 @@ int main(int argc, char **argv)
             int base = (c2 >> 4) * 289 + (c1 >> 4) * 17 + (c0 >> 4);
             int f[3] = { c2 & 0xf, c1 & 0xf, c0 & 0xf };   /* fi, fj, fk */
             int d[3] = { 289, 17, 1 };                    /* i, j, k deltas */
-            /* sorteer descending op fractie (ties mogen, gewicht wordt 0) */
+            /* sort descending by fraction (ties allowed, weight becomes 0) */
             for (int a = 1; a < 3; a++) {
                 int fv = f[a], dv = d[a], b = a - 1;
                 while (b >= 0 && f[b] < fv) { f[b+1] = f[b]; d[b+1] = d[b]; b--; }
@@ -107,7 +107,7 @@ int main(int argc, char **argv)
             r0 = (uint8_t)(s0 >> 4);
             r1 = (uint8_t)(s1 >> 4);
             r2 = (uint8_t)(s2 >> 4);
-            /* s <= 16*255 dus s>>4 <= 255 — geen clamp nodig (uint8_t) */
+            /* s <= 16*255 so s>>4 <= 255 — no clamp needed (uint8_t) */
         }
 
         uint8_t e0 = op[p*3+0], e1 = op[p*3+1], e2 = op[p*3+2];
@@ -123,6 +123,6 @@ int main(int argc, char **argv)
         }
     }
     printf("pixels=%zu  mismatches=%ld  maxdiff=%d  -> %s\n",
-           npix, mism, maxdiff, mism ? "NIET BYTE-EXACT" : "BYTE-EXACT ✓");
+           npix, mism, maxdiff, mism ? "NOT BYTE-EXACT" : "BYTE-EXACT ✓");
     return mism ? 1 : 0;
 }

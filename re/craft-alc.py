@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# craft FXRaster (44-byte header + RGB data) en draai FXM_ALC, dump de sq21 stream
+# craft FXRaster (44-byte header + RGB data) and run FXM_ALC, dump the sq21 stream
 import struct, subprocess, sys, os
 REPO='/home/rick/src/phaser6125'
 SYSROOT='/home/rick/sysroot-i386'

@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-printer-status.py — status van de Xerox Phaser 6125N ophalen, in Python.
+printer-status.py — fetch the status of the Xerox Phaser 6125N, in Python.
 
-Twee bronnen, beide read-only (geen login nodig):
-  1. HTTP (CentreWare IS webinterface):
-       - globale status, page count, papierladen
+Two sources, both read-only (no login needed):
+  1. HTTP (CentreWare IS web interface):
+       - global status, page count, paper trays
        - supplies (Imaging Unit / Fuser / cartridges)
-       - laatste job-log regels
-  2. SNMP (deze printer spreekt ALLEEN SNMPv1, community 'public'):
+       - last job-log lines
+  2. SNMP (this printer speaks ONLY SNMPv1, community 'public'):
        - sysDescr / sysName / sysUpTime
        - prtMarkerSupplies (RFC 1759): description, maxCapacity, level
 
-Bekende beperking: dit model rapporteert tonerlevels als "--" via HTTP en
-level -2 (unknown) via SNMP — de geplaatste cartridges zijn niet-origineel,
-de printer kan/zal daarvoor geen niveau melden. Imaging Unit en Fuser geven
-wel percentages.
+Known limitation: this model reports toner levels as "--" via HTTP en
+level -2 (unknown) via SNMP — the installed cartridges are non-original,
+the printer cannot/will not report a level for them. Imaging Unit and
+Fuser do report percentages.
 
-Gebruik:  python3 scripts/printer-status.py
+Usage:  python3 scripts/printer-status.py
 Env:      PRINTER_IP=192.168.178.10   SNMP_COMMUNITY=public   SNMP_TIMEOUT=2
 """
 import os
@@ -35,12 +35,12 @@ BASE = "http://" + IP
 # ---------------------------------------------------------------- HTTP ----
 def http(path):
     with urllib.request.urlopen(BASE + path, timeout=5) as r:
-        # pagina's eindigen in een NUL-byte; weghalen voor de parser
+        # pages end in a NUL byte; strip it for the parser
         return r.read().decode("utf-8", "ignore").replace("\x00", "")
 
 
 def tags(html):
-    """strip HTML tags -> 1 value per line (leeg weg)"""
+    """strip HTML tags -> 1 value per line (drop empty)"""
     txt = re.sub(r"<[^>]+>", "\n", html)
     txt = txt.replace("&nbsp;", " ").replace("&amp;", "&")
     return [l.strip() for l in txt.splitlines() if l.strip()]
@@ -49,7 +49,7 @@ def tags(html):
 def http_status():
     print("-- Status --")
     m = re.search(r">Status</a>:</td><td>([^<]*)", http("/menustat.htm"))
-    print(m.group(1) if m else "(onbekend)")
+    print(m.group(1) if m else "(unknown)")
 
 
 def http_page_count():
@@ -59,11 +59,11 @@ def http_page_count():
         if l == "Page Count":
             j = i + 1
             while j < len(lines) and lines[j] == "Page Count":
-                j += 1  # dubbele kop ('Page Count' caption + label)
+                j += 1  # duplicate header ('Page Count' caption + label)
             if j < len(lines):
                 print(lines[j])
                 return
-    print("(onbekend)")
+    print("(unknown)")
 
 
 def http_trays():
@@ -80,7 +80,7 @@ def http_supplies():
     lines = tags(http("/status/statsuppliesx.htm"))
 
     def after_all(label, skip=("Level",)):
-        """waarde-regel na élke occurrence van het label (caption+label дубbelen)"""
+        """value line after EVERY occurrence of the label (caption+label duplicates)"""
         vals = []
         for i, l in enumerate(lines):
             if l == label:
@@ -111,7 +111,7 @@ def http_jobs():
 
 
 # ---------------------------------------------------------------- SNMP ----
-# Minimale SNMPv1 client (GET/GETNEXT), geen externe dependencies.
+# Minimal SNMPv1 client (GET/GETNEXT), no external dependencies.
 
 def _ber_len(n):
     if n < 128:
@@ -208,7 +208,7 @@ def _parse_response(data):
     _, _ver = r.tlv()
     _, _comm = r.tlv()
     ptag, pdu = r.tlv()
-    assert ptag == 0xA2, "geen GetResponse (PTAG=0x%02x)" % ptag
+    assert ptag == 0xA2, "no GetResponse (PTAG=0x%02x)" % ptag
     r = _R(pdu)
     _, _rid = r.tlv()
     _, errstatus = r.tlv()
@@ -235,7 +235,7 @@ def snmp_get(oid):
 
 
 def snmp_walk(base):
-    """GETNEXT-loop binnen een subtree; geeft [(oid, value)] terug."""
+    """GETNEXT loop within a subtree; returns [(oid, value)]."""
     res = []
     cur = base
     base_enc = _oid(base)
@@ -252,16 +252,16 @@ def snmp_walk(base):
         oid, _tag, val = binds[0]
         enc = _oid(oid)
         if not enc.startswith(base_enc) or len(enc) <= len(base_enc):
-            break  # buiten de subtree
+            break  # outside the subtree
         if oid == cur:
-            break  # geen progressie
+            break  # no progress
         res.append((oid, val))
         cur = oid
     return res
 
 
-LEVEL_NAMES = {-1: "anders", -2: "onbekend", -3: "restant", -4: "leeg"}
-# RFC 1759 prtMarkerSupplies kolommen: 6=description 7=supplyUnit 8=maxCapacity 9=level
+LEVEL_NAMES = {-1: "other", -2: "unknown", -3: "some remaining", -4: "empty"}
+# RFC 1759 prtMarkerSupplies columns: 6=description 7=supplyUnit 8=maxCapacity 9=level
 SUPPLIES_BASE = "1.3.6.1.2.1.43.11.1.1"
 
 
@@ -269,7 +269,7 @@ def snmp_info():
     print("-- SNMP (v1, community %s) --" % COMMUNITY.decode())
     descr = snmp_get("1.3.6.1.2.1.1.1.0")
     if descr is None:
-        print("  geen response op UDP/161 — SNMP-agent uitgeschakeld?")
+        print("  no response on UDP/161 — SNMP agent disabled?")
         return
     print("  sysDescr:  %s" % descr)
     name = snmp_get("1.3.6.1.2.1.1.5.0")
@@ -311,11 +311,11 @@ def main():
         http_supplies()
         http_jobs()
     except Exception as e:
-        print("HTTP-fout: %s" % e)
+        print("HTTP error: %s" % e)
     try:
         snmp_info()
     except Exception as e:
-        print("SNMP-fout: %s" % e)
+        print("SNMP error: %s" % e)
 
 
 if __name__ == "__main__":

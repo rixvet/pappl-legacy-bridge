@@ -1,6 +1,6 @@
 #!/bin/sh
-# Stuurt een testpagina naar de Phaser 6125N via CUPS (native driver).
-# Geen root nodig. Met een argument: lp -d Phaser6125N <jouw-file>
+# Sends a test page to the Phaser 6125N via CUPS (native driver).
+# No root needed. With an argument: lp -d Phaser6125N <your-file>
 set -e
 PRINTER=Phaser6125N
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,8 +8,8 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 if [ $# -ge 1 ]; then
     lp -d "$PRINTER" "$1"
 elif [ -f "$REPO/tests/colorpage.pdf" ]; then
-    # full colour/image torture page: titel, gekleurde tekst, meahow, kleurbalken,
-    # gradient, noise, schaakbord, hue-lijnen
+    # full colour/image torture page: title, coloured text, meahow, colour bars,
+    # gradient, noise, checkerboard, hue lines
     lp -d "$PRINTER" "$REPO/tests/colorpage.pdf"
 elif [ -f "$REPO/tests/colorpage.ps" ]; then
     lp -d "$PRINTER" "$REPO/tests/colorpage.ps"
@@ -19,5 +19,5 @@ else
     lp -d "$PRINTER" "$REPO/tests/testpage.ps"
 fi
 
-echo "Testpagina verstuurd naar '$PRINTER'."
-echo "Check: lpstat -W all -o $PRINTER   en   tail /var/log/cups/error_log"
+echo "Test page sent to '$PRINTER'."
+echo "Check: lpstat -W all -o $PRINTER   and   tail /var/log/cups/error_log"

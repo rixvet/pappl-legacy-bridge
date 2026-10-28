@@ -100,7 +100,7 @@ _CALIB = None
 
 
 def _caliblib():
-    """Oracle voor de FXM_CC calibratie (re/calib.c, shared lib)."""
+    """Oracle for the FXM_CC calibration (re/calib.c, shared lib)."""
     global _CALIB
     if _CALIB is not None:
         return _CALIB or None
@@ -230,7 +230,7 @@ def main():
     gray = o.get('FXColorMode', 'Color') != 'Color'
 
     # colour calibration — mirrors the driver (FOO2SQ_CALIBRATE, default
-    # aan; FXDocumentType -> FXDLUT block code uit de PPD setpagedevice)
+    # on; FXDocumentType -> FXDLUT block code from the PPD setpagedevice)
     ce = os.environ.get('FOO2SQ_CALIBRATE', '')
     calibrate = not (ce == '0' or ce.lower() in ('no', 'off'))
     fxdlut = 24   # FXDocumentType Normal
@@ -291,16 +291,16 @@ def main():
         assert pg['pageno'] == n + 1, 'pageno %d != %d' % (pg['pageno'], n + 1)
         plans.append((n, pg, gw, gh, gpix, cx, cy, cw, ch, W4))
 
-    # oracle voor de gekalibreerde verwachte raster (eenmalig laden; de
-    # LUT is read-only dus thread-safe voor de pool hieronder)
+    # oracle for the calibrated expected raster (loaded once; the
+    # LUT is read-only so it is thread-safe for the pool below)
     calib = None
     if calibrate:
         calib = _caliblib()
         if calib is None:
-            print('WAARSCHUWING: re/libcalib.so niet beschikbaar — '
-                  'gekakalibreerde pixels worden NIET geverifieerd')
+            print('WARNING: re/libcalib.so unavailable — '
+                  'calibrated pixels are NOT verified')
         elif calib.calib_load(env['FOO2SQ_DLUT'].encode(), fxdlut) != 0 and not gray:
-            print('WAARSCHUWING: oracle dlut %s niet bruikbaar (CST-only)' %
+            print('WARNING: oracle dlut %s unusable (CST-only)' %
                   env['FOO2SQ_DLUT'])
     if calibrate:
         mode = ('gray NTSC(CST)' if gray else

@@ -1,9 +1,9 @@
 #!/bin/sh
-# Installeert CUPS + de 32-bit libraries die de oude Fuji Xerox filters nodig
-# hebben (ze zijn 32-bit i386 ELF's uit 2005-2012, met interpreter
-# /lib/ld-linux.so.2 en afhankelijk van een 32-bit libcups.so.2).
+# Installs CUPS + the 32-bit libraries the old Fuji Xerox filters need
+# (they are 32-bit i386 ELFs from 2005-2012, with interpreter
+# /lib/ld-linux.so.2 and dependent on a 32-bit libcups.so.2).
 #
-# Vereist root:  sudo bash scripts/setup-cups.sh
+# Requires root:  sudo bash scripts/setup-cups.sh
 set -e
 
 dpkg --add-architecture i386
@@ -14,5 +14,5 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y \
 
 systemctl enable --now cups 2>/dev/null || service cups start
 
-echo "OK: CUPS + 32-bit libs geinstalleerd."
+echo "OK: CUPS + 32-bit libs installed."
 cupsd -v 2>/dev/null || true

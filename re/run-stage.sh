@@ -1,6 +1,6 @@
 #!/bin/sh
 # run-stage.sh STAGE "options" input output
-# Draait één 32-bit FXM filter stage via de sysroot-loader, data via stdin/stdout.
+# Runs one 32-bit FXM filter stage via the sysroot loader, data via stdin/stdout.
 STAGE=$1; OPTS=$2; IN=$3; OUT=$4
 REPO=/home/rick/src/phaser6125
 SYSROOT=/home/rick/sysroot-i386

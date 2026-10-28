@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Extract statiche CST-tabellen/constanten uit het 32-bit FXM_CC ELF.
+"""Extract static CST tables/constants from the 32-bit FXM_CC ELF.
 
-File offset = vaddr - 0x08048000 (zowel .rodata als .data).
+File offset = vaddr - 0x08048000 (both .rodata and .data).
 Outputs (in re/build/):
   xyz2srgbtrc.bin   4096 bytes  @ 0x080502e0  (inverse TRC, 12bit -> 8bit)
   gamma22trc.bin     512 bytes  @ 0x080516e0  (256 x u16 LE, 8bit -> 12bit)
