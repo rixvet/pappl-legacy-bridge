@@ -131,10 +131,12 @@ rect(6, 18, 8, 20, 'W'); rect(23, 18, 25, 20, 'W')
 rect(11, 24, 20, 24, 'O')
 rect(10, 25, 21, 28, 'O')
 rect(13, 25, 18, 27, 'W')
-# paws (light gray so they show on the white page) with toe lines
-rect(10, 29, 13, 31, 'L'); rect(18, 29, 21, 31, 'L')
-grid[31][11] = 'K'; grid[31][12] = 'K'
-grid[31][19] = 'K'; grid[31][20] = 'K'
+# paws: light gray fill with a black outline (reads well on the white page)
+rect(10, 29, 13, 30, 'L'); rect(18, 29, 21, 30, 'L')
+grid[30][11] = 'K'; grid[30][12] = 'K'      # toe lines
+grid[30][19] = 'K'; grid[30][20] = 'K'
+rect(9, 29, 9, 31, 'K'); rect(14, 29, 14, 31, 'K'); rect(9, 31, 14, 31, 'K')   # left paw outline
+rect(17, 29, 17, 31, 'K'); rect(22, 29, 22, 31, 'K'); rect(17, 31, 22, 31, 'K') # right paw outline
 # tail curling up on the right, dark tip
 rect(22, 25, 23, 25, 'O'); rect(23, 26, 24, 26, 'O')
 rect(24, 27, 25, 27, 'O'); rect(25, 28, 26, 28, 'O')

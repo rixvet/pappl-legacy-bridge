@@ -151,12 +151,33 @@ afgeschaft ten gunste van driverless IPP. Voor deze setup is het loos alarm:
 
 ## 9. Bekende beperkingen / vervolgwerk
 
-- **Color calibration (FXM_CC + dlut) NIET gerepliceerd.** Kleuren zijn
-  structureel correct (zwart→zwart, wit→wit geverifieerd; de kleurtestpagina
-  ziet er goed uit), maar niet gekalibreerd zoals de officieuze driver. Vervolgstap:
-  dlut formaat reversen (265944 bytes, 3D LUT vermoedelijk) + trilinear
-  interpolatie in C; oracle = 32-bit FXM_CC via de i386 sysroot + capture
-  `re/build/s4-cc.fxr`. Inschatting: middelmatig werk (ordegrootte een dag).
+- **Color calibration (FXM_CC + dlut) NIET gerepliceerd** — maar het formaat is
+  inmiddels goeddeels gekraakt (zie onder). Kleuren zijn structureel correct
+  (zwart→zwart, wit→wit geverifieerd; de kleurtestpagina ziet er goed uit),
+  maar niet gekalibreerd zoals de officieuze driver.
+
+  **DLUT formaat** (`driver/Phaser_6125N.dlut`, 265944 bytes, big-endian):
+  - header: magic `DLUT`, u32be count=13, 13× u32be block-offsets
+    (13 aaneengesloten blokken van 20428 bytes; laatste blok eindigt exact
+    op EOF)
+  - elk blok: magic `dlt4` + u32be(0) + **3×256 bytes 1D curves** (R,G,B —
+    in dit bestand allemaal identity) + **17³ × 4 bytes 3D LUT** (4913 nodes,
+    byte range 0..255; vermoedelijk RGB+pad — block 11 toont (0,~59,255,0)-achtige
+    kleuren, block 6 een schone G-ramp met stap 16 = 256/16 ✓)
+  - 13 blokken = ~9 distincte calibratie-sets (sommige duplicaten) — vermutlich
+    per papiertype/printmodus; block-selectie-logica nog te bepalen
+  - FXM_CC heet intern `fxcolorconv` en refereert ICC gamma-TRC tags
+    (`gamma10/14/18/22/26TRC`) — waarschijnlijk voor een ICC-input path;
+    voor deze printer is de stage een per-pixel RGB→RGB 24bpp transform
+    (s3-pr.fxr en s4-cc.fxr hebben identieke FXR headers: 595×842, 24bpp)
+  - **Inschatting vervolgwerk: ~half dag (3-5 uur).** Resteren: node byte order,
+    grid axis order, interpolatie (trilinear vs tetrahedral), block-selectie.
+    Implementatie = ~150 regels C (trilinear over 17³) in de driver; oracle =
+    32-bit FXM_CC via de i386 sysroot + capture `re/build/s4-cc.fxr` voor
+    byte-exact verificatie. Laag risico dankzij de oracle.
+  - Alternatief (niet exact): de Windows driver ship `fxhl2zp1.icm`; met lcms2
+    krijg je ICC-gekalibreerde output zonder de DLUT te reversen, maar dat
+    matcht de officieuze driver niet byte-exact.
 - FXM_SBP / FXM_PR details (gray / turnpage) niet gerepliceerd.
 - Officieuze chain is near-lossless; de onze is exact lossless.
 - CUPS draait filters als user `lp`; `/usr/lib/cups/filter` moet root:root 0755.
