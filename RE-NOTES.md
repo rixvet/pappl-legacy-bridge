@@ -132,6 +132,23 @@ bash scripts/test-print.sh                   # drukt tests/colorpage.pdf af
   (zelfde opties als de originele PPD; `*cupsFilter` wijst naar foo2sq21hbpl)
 - queue `Phaser6125N` → `socket://192.168.178.10:9100`
 
+### CUPS "Printer drivers are deprecated" waarschuwing
+
+`lpadmin` print deze melding omdat PPD-gebaseerde drivers (PPD + filter in
+`/usr/lib/cups/filter`) in een toekomstige CUPS (3.x, OpenPrinting) worden
+afgeschaft ten gunste van driverless IPP. Voor deze setup is het loos alarm:
+
+- Ubuntu 22.04 ship CUPS 2.4.1 **mét** PPD/driver support; 22.04 is ondersteund
+  tot 2027 (en WSL2 kan daar nog langer op blijven).
+- De Phaser 6125N is een raw printer (poort 9100/515/80, **geen IPP**) — zonder
+  PPD+filter is er géén driverless/IPP-Everywhere mogelijk. PPD+filter is hier
+  de énige werkbare route.
+- Onze filter is standalone: printen kan altijd zonder CUPS via
+  `native/foo2sq21hbpl 1 <user> <title> 1 "<options>" <file> | nc 192.168.178.10 9100`
+  (de eerste testprints in deze sessie gingen precies zo).
+- Wil je ooit toch van de PPD af: de filter kan verpakt worden als IPP printer
+  application (`ippserver`) — nu niet nodig.
+
 ## 9. Bekende beperkingen / vervolgwerk
 
 - **Color calibration (FXM_CC + dlut) NIET gerepliceerd.** Kleuren zijn
