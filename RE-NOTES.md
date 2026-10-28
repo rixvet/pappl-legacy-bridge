@@ -382,3 +382,45 @@ daar is route C de manier.
 het device checken (Device Manager / `lpinfo -v`), printen pas als het
 device confirmed is. Controleer eventueel in CentreWare IS
 (http://192.168.178.10, read-only) of de USB-poort ingeschakeld is.
+
+## 11. Windows 11 driverless via IPP (context: V3/V4 driver deprecation)
+
+Microsoft bouwt legacy V3/V4 printerdrivers af (end-of-servicing plan,
+learn.microsoft.com "End of servicing plan for third-party printer
+drivers"): sinds sept 2023 geen nieuwe V3/V4, sinds 15 jan 2026 geen
+nieuwe via Windows Update (Win11+/Server 2025+), vanaf 1 juli 2026
+voorrang voor de IPP inbox class driver, na juli 2027 alleen nog
+securityfixes. Bestaande drivers blijven werken, maar printers zonder
+IPP/Mopria vallen terug op handmatig geinstalleerde drivers.
+
+De Phaser 6125N spreekt **geen IPP/Mopria** (bewezen: CentreWare IS HTTP,
+SNMPv1-only, raw 9100 HBPL) — de vendor driver (route A, §10) is op
+Windows 11 24H2+ op termijn een aflopende zaak.
+
+**Onze setup is al de userspace-vertaling** die het nieuwe model verlangt:
+`foo2sq21hbpl` rendert PDF → HBPL in userspace (ghostscript + onze chain),
+en de WSL CUPS is een IPP-printserver. Wat ontbrak is alleen de
+Windows→WSL IPP-verbinding (driverless, inbox class driver):
+
+1. `sudo bash scripts/setup-wsl-ipp.sh` — zet `Listen *:631` in cupsd.conf
+   (backup `.pre-ipp`), herstart CUPS, test de IPP endpoint via het WSL IP
+   met `ipptool get-printer-attributes`
+2. Windows: Instellingen → Printers & scanners → *Apparaat toevoegen* →
+   *De printer die ik wil staat er niet bij* → *Een gedeelde printer op
+   naam selecteren* → `http://<wsl-ip>:631/printers/Phaser6125N` — Windows
+   detecteert IPP en gebruikt de **inbox class driver** (geen V3 driver)
+3. Print vanuit Windows → CUPS (WSL) → `foo2sq21hbpl` → HBPL → printer
+   (socket 9100, of USB via §10 route C)
+
+Firewall: Windows Firewall blokkeert inkomend naar WSL soms — regel
+toevoegen voor poort 631, of WSL2 mirrored networking
+(`[wsl2] networkingMode=mirrored` in `%UserProfile%\.wslconfig`, daarna
+`wsl --shutdown`) — WSL krijgt dan hetzelfde IP als Windows.
+
+**USB als fallback** (§10): route B (raw `copy /b … \\.\USB001`) staat
+helemaal buiten de print stack — immuun voor deprecation. Route C
+(usbipd + CUPS `usb://`) is driverless maar via CUPS.
+
+Voor meerdere printers / een appliance: PAPPL (github.com/istopwg/pappl)
+of een Raspberry Pi + CUPS — onze repo is al compatibel getest op
+22.04/24.04/26.04 (`scripts/test-compat-distro.sh`).
