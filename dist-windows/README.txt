@@ -37,6 +37,20 @@ The SN= field is present in printer-device-id for clients that parse it.
    IPP server starts on port 8631. Ghostscript is already bundled in `gs/`.
    Set the printer IP via the `PRINTER_IP` variable at the top of the .bat file (default `192.168.178.10`), or via environment variable: `set PRINTER_IP=192.168.1.50` before running.
 
+### USB instead of network
+
+If the printer is connected via USB to the gateway PC, set the device
+instead of the IP:
+
+```bat
+set PRINTER_DEV=usbprint://./USB001
+```
+
+`usbprint:` writes the raw HBPL stream straight to the Windows device file
+(the USB port, same mechanism as `copy /b out.bin` to that port). Use the
+USB port name from the old queue's port properties (USB001, USB002, ...).
+Coexists with the network option — just switch PRINTER_DEV.
+
 ## Two ways to run
 
 **Portable (no admin rights needed):**

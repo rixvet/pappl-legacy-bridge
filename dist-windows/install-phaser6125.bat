@@ -21,6 +21,8 @@ setlocal
 
 REM ---- Configuration: set your printer IP here (or via PRINTER_IP env var) ----
 if "%PRINTER_IP%"=="" set PRINTER_IP=192.168.178.10
+REM Device: network (default) or USB. For USB set: set PRINTER_DEV=usbprint://./USB001
+if "%PRINTER_DEV%"=="" set PRINTER_DEV=socket://%PRINTER_IP%:9100
 set INSTALL_DIR=%ProgramFiles%\Phaser6125PAPPL
 
 echo Installing Xerox Printer 6125N PAPPL to %INSTALL_DIR% ...
@@ -46,11 +48,11 @@ where dnssd.dll >nul 2>nul || (
 )
 
 echo.
-echo Adding printer "Xerox Printer 6125N" (socket://%PRINTER_IP%:9100) ...
-"%INSTALL_DIR%\phaser6125-pappl.exe" add -d "Xerox Printer 6125N" -m xerox_phaser_6125n -v socket://%PRINTER_IP%:9100 -o printer-device-id="MFG:Xerox;MDL:Printer 6125N;SN:LAL035151;CMD:HBPL,PWGRaster,URF,PDF,PS,JPEG,PNG,TXT;"
+echo Adding printer "Xerox Printer 6125N" (%PRINTER_DEV%) ...
+"%INSTALL_DIR%\phaser6125-pappl.exe" add -d "Xerox Printer 6125N" -m xerox_phaser_6125n -v %PRINTER_DEV% -o printer-device-id="MFG:Xerox;MDL:Printer 6125N;SN:LAL035151;CMD:HBPL,PWGRaster,URF,PDF,PS,JPEG,PNG,TXT;"
 if errorlevel 1 (
     echo Printer may already exist — trying modify instead:
-    "%INSTALL_DIR%\phaser6125-pappl.exe" modify -d "Xerox Printer 6125N" -v socket://%PRINTER_IP%:9100
+    "%INSTALL_DIR%\phaser6125-pappl.exe" modify -d "Xerox Printer 6125N" -v %PRINTER_DEV%
 )
 
 echo.
