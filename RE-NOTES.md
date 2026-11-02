@@ -516,9 +516,18 @@ LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
   libpappl1.dll). Verified under wine64: `--help` shows full PAPPL usage.
   `start_gs()` _WIN32 path uses CreateProcess + gswin64c.exe (found next to
   the .exe or on PATH). Packaging: `scripts/package-windows.sh` →
-  `Phaser6125N-PAPPL-win64.zip` (2.1 MB, exe + 11 DLLs + install-phaser6125.bat
-  + README.txt). User adds gswin64c.exe (Ghostscript 10.x) themselves.
+  `Phaser6125N-PAPPL-win64.zip` (~25 MB, exe + 11 DLLs + bundled
+  Ghostscript 10.08 in `gs/` + install-phaser6125.bat + README.txt).
+  Ghostscript (AGPL) auto-downloaded from ArtifexSoftware GitHub releases
+  and extracted with 7z — no separate install needed.
   Alternative: `vcnet/` MSVC project for those with VS2022.
+- **mDNS/DNS-SD auto-discovery**: PAPPL registers `_ipp._tcp` automatically
+  in `papplSystemRun` when `dnssd.dll` (Apple Bonjour) is loadable — on
+  Windows via `LoadLibraryA("dnssd.dll")` (PAPPL vcnet/dns_sd.c), on Linux
+  via Avahi (verified in logs: "Registering DNS-SD name 'phaser'").
+  dnssd.dll is NOT bundled (Apple licensing) — install Bonjour Print
+  Services or drop dnssd.dll next to the .exe. Without it, clients use
+  the manual URL `http://<host>:8631/ipp/print/<name>`.
 - **DNS-SD/mDNS advertisement**: PAPPL does this automatically when not
   `private-server`; on Windows the app should register the printer so
   "Add printer" finds it without manual URI entry.

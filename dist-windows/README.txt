@@ -7,33 +7,39 @@ deprecation plan.
 
 ## Contents
 
-| File | Purpose |
+| File/Folder | Purpose |
 |---|---|
 | `phaser6125-pappl.exe` | The IPP print server (PAPPL-based) |
-| `libpappl1.dll`, `libcups2.dll`, … | Runtime libraries |
+| `*.dll` | Runtime libraries (libpappl, libcups, libressl, …) |
+| `gs/` | **Bundled Ghostscript 10.08** (AGPL) — `gs/bin/gswin64c.exe` |
 | `install-phaser6125.bat` | One-click installer |
-| `gswin64c.exe` | **You must add this** — Ghostscript 10.x 64-bit |
+| `dnssd.dll` | *Optional* — Apple Bonjour, enables mDNS auto-discovery |
 
 ## Installation
 
-1. Download **Ghostscript 10.x for Windows (64-bit)** from
-   https://ghostscript.com/releases/gsdnld.html — grab the `.msi`, install it,
-   then copy `gswin64c.exe` from `C:\Program Files\gs\gs10.xx\bin\` into
-   this folder.
-2. Run `install-phaser6125.bat` **as Administrator**.
-3. The printer `Phaser6125` is added and the IPP server starts on port 8631.
+1. Run `install-phaser6125.bat` **as Administrator**.
+2. The printer `Phaser6125` is added (socket://192.168.178.10:9100) and the
+   IPP server starts on port 8631. Ghostscript is already bundled in `gs/`.
+
+## Auto-discovery (mDNS / DNS-SD)
+
+PAPPL automatically advertises the printer via DNS-SD (`_ipp._tcp`) when
+`dnssd.dll` (Apple Bonjour) is available. Install **Bonjour Print Services
+for Windows** (https://support.apple.com/kb/DL999) or copy `dnssd.dll`
+next to the .exe — then Windows 11 finds the printer automatically in
+*Add device* without typing a URL.
+
+Without Bonjour, use the manual URL below.
 
 ## Using from other Windows 11 PCs
 
-Settings → Printers & scanners → **Add device** → *The printer that I want
-isn't listed* → *Select a shared printer by name* → enter:
+With Bonjour: Settings → Printers & scanners → **Add device** — the
+`Phaser6125` printer appears automatically.
 
-```
-http://<this-pc-ip>:8631/ipp/print/Phaser6125
-```
+Without Bonjour: *The printer that I want isn't listed* →
+*Select a shared printer by name* → `http://<this-pc-ip>:8631/ipp/print/Phaser6125`
 
-Windows 11 detects IPP and uses the inbox class driver automatically.
-No driver installation needed on the client.
+Windows 11 uses the inbox IPP class driver — no legacy V3/V4 driver needed.
 
 ## Manual usage
 

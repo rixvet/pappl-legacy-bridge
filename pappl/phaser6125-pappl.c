@@ -259,13 +259,19 @@ static FILE *start_gs(const char *input, int dpi, double pd_w, double pd_h, gs_p
     FILE *fp;
     DWORD written;
 
-    /* Locate gswin64c.exe: next to our .exe, or on PATH */
+    /* Locate gswin64c.exe: in "gs/" subdir next to our .exe, next to our
+     * .exe directly, or on PATH */
     if (GetModuleFileNameA(NULL, gs_exe, MAX_PATH) > 0) {
         char *slash = strrchr(gs_exe, '\\');
         if (slash) {
-            snprintf(slash + 1, sizeof(gs_exe) - (slash + 1 - gs_exe), "gswin64c.exe");
-            if (GetFileAttributesA(gs_exe) == INVALID_FILE_ATTRIBUTES)
-                snprintf(gs_exe, sizeof gs_exe, "gswin64c.exe"); /* fall back to PATH */
+            size_t remain = sizeof(gs_exe) - (size_t)(slash + 1 - gs_exe);
+            snprintf(slash + 1, remain, "gs\\bin\\gswin64c.exe");
+            if (GetFileAttributesA(gs_exe) == INVALID_FILE_ATTRIBUTES) {
+                snprintf(slash + 1, remain, "gs\\gswin64c.exe");
+                snprintf(slash + 1, remain, "gswin64c.exe");
+                if (GetFileAttributesA(gs_exe) == INVALID_FILE_ATTRIBUTES)
+                    snprintf(gs_exe, sizeof gs_exe, "gswin64c.exe"); /* PATH fallback */
+            }
         }
     } else {
         snprintf(gs_exe, sizeof gs_exe, "gswin64c.exe");

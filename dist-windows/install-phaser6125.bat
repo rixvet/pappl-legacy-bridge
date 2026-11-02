@@ -24,15 +24,22 @@ echo Installing Phaser 6125N PAPPL to %INSTALL_DIR% ...
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
 copy /Y phaser6125-pappl.exe "%INSTALL_DIR%\" >nul
 copy /Y *.dll "%INSTALL_DIR%\" >nul
-
-if not exist "%INSTALL_DIR%\gswin64c.exe" (
-    echo.
-    echo WARNING: gswin64c.exe not found in %INSTALL_DIR% or current directory.
-    echo Download Ghostscript 10.x 64-bit and place gswin64c.exe there.
-    echo Printing will not work until Ghostscript is installed.
-    echo.
+if exist gs\bin\gswin64c.exe (
+    xcopy /E /Y /I gs "%INSTALL_DIR%\gs" >nul
+    echo Ghostscript bundled: %INSTALL_DIR%\gs\bin\gswin64c.exe
 ) else (
-    echo Ghostscript found: %INSTALL_DIR%\gswin64c.exe
+    echo WARNING: gs\bin\gswin64c.exe not found — printing will not work.
+)
+
+REM mDNS/DNS-SD auto-discovery: PAPPL advertises _ipp._tcp via Bonjour when
+REM dnssd.dll is available. Install Bonjour Print Services for Windows
+REM (https://support.apple.com/kb/DL999) or place dnssd.dll next to the .exe.
+where dnssd.dll >nul 2>nul || (
+    if not exist "%INSTALL_DIR%\dnssd.dll" (
+        echo NOTE: dnssd.dll not found — mDNS auto-discovery disabled.
+        echo       Other PCs can still add the printer manually via:
+        echo       http://^<this-pc^>:8631/ipp/print/Phaser6125
+    )
 )
 
 echo.
