@@ -546,6 +546,14 @@ LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
   query from the LAN interface (192.168.178.46) returns Phaser6125.
   **CONFIRMED: printer appears in Windows 11 "Add device" auto-discovery**
   (user-verified on WINNIE, 2026-11-02).
+  **tshark capture during Windows "Add device" (Ethernet 2, 45s)**: Windows
+  host sends WSD Probe multicast to 239.255.255.250:3702 (25x — answered by
+  other LAN devices 192.168.178.3/.11/.30, NOT by our gateway — we are
+  IPP-only, no WSD responder) AND mDNS traffic on 5353 where our service
+  is visible: `PTR Xerox Printer 6125N._ipp._tcp.local.`,
+  `TXT rp=ipp/print/Xerox_Printer_6125N`, `SRV WINNIE.local.:8631`.
+  So mDNS discovery works; the WSD port Windows assigns to the queue is
+  cosmetic — print via the IPP URL (see README troubleshooting).
   mdns_mini.c fix: join multicast group on INADDR_ANY (getaddrinfo may
   pick the wrong interface IP on multi-homed Windows hosts).
   **Windows 11 caveat**: Settings → "Add device" primarily uses
