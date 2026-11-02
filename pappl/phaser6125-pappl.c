@@ -874,6 +874,22 @@ static pappl_system_t *system_cb(int num_options, cups_option_t *options,
                                spooldir, logfile, loglevel, NULL, false);
     if (!system) return NULL;
 
+    /* Set explicit hostname — otherwise PAPPL may fall back to
+     * "localhost" which ends up in the mDNS adminurl (breaks Windows
+     * IPP classification: adminurl must resolve to this host). */
+    {
+        char hn[256];
+#ifdef _WIN32
+        DWORD hl = sizeof hn;
+        if (GetComputerNameA(hn, &hl)) papplSystemSetHostName(system, hn);
+#else
+        if (gethostname(hn, sizeof hn - 1) == 0) {
+            hn[sizeof hn - 1] = 0;
+            papplSystemSetHostName(system, hn);
+        }
+#endif
+    }
+
     /* Add TCP listeners ourselves: when a custom system_cb is used, PAPPL's
      * _papplMainloopRunServer only adds the Unix domain socket (non-Windows)
      * — the TCP listener code lives in default_system_cb which is never

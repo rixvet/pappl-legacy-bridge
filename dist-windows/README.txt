@@ -44,9 +44,22 @@ queue was auto-created with a **WSD port** (see Printer Properties → Ports →
    `http://<this-pc-ip>:8631/ipp/print/Xerox_Printer_6125N`
 3. Windows then creates an **IPP port** and prints via IPP (verified working).
 
-Auto-discovery via mDNS finds the gateway, but Windows may assign a WSD port
-to the discovered device — always verify the port is IPP (not WSD) after
-adding. Also: the mDNS service name follows the queue name — run-portable.bat
+Auto-discovery via mDNS finds the gateway. If Windows assigns a **WSD port**
+to the discovered device (Printer Properties → Ports → "WSD-..."), two
+things to check:
+
+1. **Turn OFF automatic device setup**: Settings → Bluetooth & devices →
+   Devices → "Let Windows automatically install apps for network devices"
+   (or equivalent auto-setup toggle). With auto-setup ON, Windows installs
+   discovered devices via WSD by default. With it OFF, the Add-device wizard
+   uses IPP classification (TXT record → live IPP probe → driver bind).
+2. Delete the queue and re-add via the manual IPP URL above — Windows then
+   creates an IPP port and printing works (verified).
+
+Our gateway advertises complete IPP Everywhere TXT via mDNS (rp, ty,
+product, pdl, URF, UUID=printer-uuid, mopria-certified, Color, Duplex,
+adminurl=http://<host>:8631/...) but has no WSD responder — WSD ports
+cannot print to it. Also: the mDNS service name follows the queue name — run-portable.bat
 now removes a legacy "Phaser6125" queue and creates "Xerox Printer 6125N",
 so discovery shows the official name.
 
