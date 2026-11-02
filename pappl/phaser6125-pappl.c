@@ -634,6 +634,7 @@ static bool snmp_status_cb(pappl_printer_t *printer)
     pappl_supply_t supplies[PAPPL_MAX_SUPPLY];
     pappl_preason_t add_reasons = PAPPL_PREASON_NONE;
     int nsup = 0;
+    bool blocking = false;
 
     if (!uri || !snmp_host_from_device_uri(uri, host, sizeof host)) {
         /* file:/usb: device — no SNMP */
@@ -679,19 +680,34 @@ static bool snmp_status_cb(pappl_printer_t *printer)
         if (a->severity <= 1) continue;  /* skip informational (power saver etc.) */
         t = a->text;
         if (!t[0]) continue;
-        if (strstr(t, "paper") || strstr(t, "Paper") || strstr(t, "Tray"))
+        if (strstr(t, "paper") || strstr(t, "Paper") || strstr(t, "Tray")) {
             add_reasons |= PAPPL_PREASON_MEDIA_EMPTY;
-        else if (strstr(t, "Toner") || strstr(t, "toner") || strstr(t, "ink"))
-            add_reasons |= PAPPL_PREASON_TONER_LOW;
-        else if (strstr(t, "jam") || strstr(t, "Jam"))
+            blocking = true;  /* out of paper blocks printing */
+        } else if (strstr(t, "jam") || strstr(t, "Jam")) {
             add_reasons |= PAPPL_PREASON_MEDIA_JAM;
-        else if (strstr(t, "over") && (strstr(t, "Cover") || strstr(t, "cover") || strstr(t, "door") || strstr(t, "Door")))
+            blocking = true;
+        } else if (strstr(t, "Toner") || strstr(t, "toner") || strstr(t, "ink")) {
+            add_reasons |= PAPPL_PREASON_TONER_LOW;
+            if (strstr(t, "empty") || strstr(t, "Empty")) blocking = true;
+        } else if (strstr(t, "over") && (strstr(t, "Cover") || strstr(t, "cover") || strstr(t, "door") || strstr(t, "Door"))) {
             add_reasons |= PAPPL_PREASON_COVER_OPEN;
-        else if (a->severity >= 4)
+            blocking = true;
+        } else if (a->severity >= 4) {
             add_reasons |= PAPPL_PREASON_OTHER;
+        }
     }
-    if (st.device_status == 6) add_reasons |= PAPPL_PREASON_OFFLINE;
+    if (st.device_status == 6) {
+        add_reasons |= PAPPL_PREASON_OFFLINE;
+        blocking = true;
+    }
     papplPrinterSetReasons(printer, add_reasons, PAPPL_PREASON_NONE);
+
+    /* Pause the queue on blocking conditions so Windows shows
+     * "Stopped"/"Attention required" instead of just "Idle" */
+    if (blocking)
+        papplPrinterPause(printer);
+    else
+        papplPrinterResume(printer);
 
     papplLogPrinter(printer, PAPPL_LOGLEVEL_INFO,
                     "SNMP status: %d supplies, %d alerts, device_status=%d, reasons=0x%x",

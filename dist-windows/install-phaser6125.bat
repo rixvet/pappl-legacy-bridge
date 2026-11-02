@@ -4,7 +4,7 @@ REM
 REM What this does:
 REM   1. Copies phaser6125-pappl.exe + DLLs to %ProgramFiles%\Phaser6125PAPPL\
 REM   2. Checks for gswin64c.exe (Ghostscript) — see note below
-REM   3. Adds the Xerox Printer 6125N printer pointing at socket://192.168.178.10:9100
+REM   3. Adds the Xerox Printer 6125N printer pointing at socket://%PRINTER_IP%:9100
 REM   4. Starts the IPP server on port 8631
 REM
 REM After running this, other Windows 11 PCs can add the printer via:
@@ -18,6 +18,9 @@ REM   https://ghostscript.com/releases/gsdnld.html
 REM and place gswin64c.exe in the same folder as phaser6125-pappl.exe.
 
 setlocal
+
+REM ---- Configuration: set your printer IP here (or via PRINTER_IP env var) ----
+if "%PRINTER_IP%"=="" set PRINTER_IP=192.168.178.10
 set INSTALL_DIR=%ProgramFiles%\Phaser6125PAPPL
 
 echo Installing Xerox Printer 6125N PAPPL to %INSTALL_DIR% ...
@@ -43,11 +46,11 @@ where dnssd.dll >nul 2>nul || (
 )
 
 echo.
-echo Adding printer "Xerox Printer 6125N" (socket://192.168.178.10:9100) ...
-"%INSTALL_DIR%\phaser6125-pappl.exe" add -d "Xerox Printer 6125N" -m xerox_phaser_6125n -v socket://192.168.178.10:9100
+echo Adding printer "Xerox Printer 6125N" (socket://%PRINTER_IP%:9100) ...
+"%INSTALL_DIR%\phaser6125-pappl.exe" add -d "Xerox Printer 6125N" -m xerox_phaser_6125n -v socket://%PRINTER_IP%:9100
 if errorlevel 1 (
     echo Printer may already exist — trying modify instead:
-    "%INSTALL_DIR%\phaser6125-pappl.exe" modify -d "Xerox Printer 6125N" -v socket://192.168.178.10:9100
+    "%INSTALL_DIR%\phaser6125-pappl.exe" modify -d "Xerox Printer 6125N" -v socket://%PRINTER_IP%:9100
 )
 
 echo.

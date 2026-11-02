@@ -21,7 +21,7 @@ deprecation plan.
    run `install-phaser6125.bat` as Administrator for a system-wide install.
 2. The printer `Xerox Printer 6125N` is added (socket://192.168.178.10:9100) and the
    IPP server starts on port 8631. Ghostscript is already bundled in `gs/`.
-   Change `192.168.178.10` in the .bat to your printer's IP.
+   Set the printer IP via the `PRINTER_IP` variable at the top of the .bat file (default `192.168.178.10`), or via environment variable: `set PRINTER_IP=192.168.1.50` before running.
 
 ## Two ways to run
 
