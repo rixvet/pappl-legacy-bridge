@@ -154,6 +154,24 @@ static int file_to_device(FILE *f, pappl_device_t *device)
     return 0;
 }
 
+
+/* Portable tmpfile: on Windows tmpfile() can fail in service context
+ * (TMP/TEMP not set) — use GetTempPath + unique name instead. */
+static FILE *make_tempfile(void)
+{
+#ifndef _WIN32
+    return tmpfile();
+#else
+    char dir[MAX_PATH], path[MAX_PATH];
+    FILE *f;
+    if (GetTempPathA(sizeof dir, dir) == 0) return NULL;
+    if (GetTempFileNameA(dir, "hbl", 0, path) == 0) return NULL;
+    f = fopen(path, "w+b");
+    if (f) unlink(path);  /* auto-delete on close (POSIX-style) */
+    return f;
+#endif
+}
+
 /* Set up the HBPL page context from PAPPL job options. */
 static void setup_page_ctx(pappl_pr_options_t *options, HbplPageCtx *ctx)
 {
@@ -446,7 +464,7 @@ static bool hbpl_filter_cb(pappl_job_t *job, pappl_device_t *device, void *data)
     sanitize(hostname);
 
     /* ---- PJL header → device ---- */
-    tmp = tmpfile();
+    tmp = make_tempfile();
     if (!tmp) {
         papplLogJob(job, PAPPL_LOGLEVEL_ERROR, "Cannot create temp file for PJL header.");
         papplJobDeletePrintOptions(options);
@@ -478,7 +496,7 @@ static bool hbpl_filter_cb(pappl_job_t *job, pappl_device_t *device, void *data)
     while ((rc = ppm_next(&pr)) == 1) {
         pageno++;
 
-        tmp = tmpfile();
+        tmp = make_tempfile();
         if (!tmp) {
             papplLogJob(job, PAPPL_LOGLEVEL_ERROR, "Cannot create temp file for page %d.", pageno);
             break;
@@ -511,7 +529,7 @@ static bool hbpl_filter_cb(pappl_job_t *job, pappl_device_t *device, void *data)
     }
 
     /* ---- Job trailer → device ---- */
-    tmp = tmpfile();
+    tmp = make_tempfile();
     if (!tmp) {
         papplLogJob(job, PAPPL_LOGLEVEL_ERROR, "Cannot create temp file for trailer.");
         return false;
