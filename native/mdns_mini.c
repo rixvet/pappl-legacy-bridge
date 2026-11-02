@@ -211,8 +211,8 @@ static int build_announcement(mdns_handle_t *h, uint8_t *buf, int maxlen, int is
         items[n++] = "txtvers=1";
         items[n++] = "qtotal=1";
         items[n++] = rp_full;
-        items[n++] = "ty=Xerox Phaser 6125N";
-        items[n++] = "product=(Xerox Phaser 6125N)";
+        items[n++] = "ty=Xerox Printer 6125N";
+        items[n++] = "product=(Xerox Printer 6125N)";
         items[n++] = "pdl=application/pdf,image/pwg-raster,image/urf,image/jpeg,image/png,application/vnd.xerox-hbpl";
         items[n++] = "URF=DM3";
         items[n++] = "UUID=db79605f-e2c4-34d2-736b-0dec0756a120";
@@ -220,7 +220,7 @@ static int build_announcement(mdns_handle_t *h, uint8_t *buf, int maxlen, int is
         items[n++] = "Color=T";
         items[n++] = "TLS=none";
         items[n++] = "adminurl=http://localhost:8631/";
-        items[n++] = "note=Xerox Phaser 6125N (HBPL via PAPPL)";
+        items[n++] = "note=Xerox Printer 6125N (HBPL via PAPPL)";
         items[n++] = "priority=0";
         items[n++] = "printer-state=3";
         items[n++] = "air=none";

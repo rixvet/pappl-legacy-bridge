@@ -1,6 +1,6 @@
-# Phaser 6125N — Driverless IPP Print Server (Windows 11)
+# Xerox Printer 6125N — Driverless IPP Print Server (Windows 11)
 
-This package makes your Xerox Phaser 6125N (or Fuji Xerox DocuPrint C525A)
+This package makes your Xerox Printer 6125N (or Fuji Xerox DocuPrint C525A)
 work on Windows 11 **without any legacy V3/V4 printer driver**. Windows uses
 its built-in IPP class driver — future-proof against Microsoft's driver
 deprecation plan.
@@ -19,7 +19,7 @@ deprecation plan.
 
 1. Unzip anywhere, double-click `run-portable.bat` (no admin needed), OR
    run `install-phaser6125.bat` as Administrator for a system-wide install.
-2. The printer `Phaser6125` is added (socket://192.168.178.10:9100) and the
+2. The printer `Xerox Printer 6125N` is added (socket://192.168.178.10:9100) and the
    IPP server starts on port 8631. Ghostscript is already bundled in `gs/`.
    Change `192.168.178.10` in the .bat to your printer's IP.
 
@@ -39,7 +39,7 @@ Settings → Bluetooth & devices → Printers & scanners → **Add device** →
 enter:
 
 ```
-http://<this-pc-ip>:8631/ipp/print/Phaser6125
+http://<this-pc-ip>:8631/ipp/print/Xerox_Printer_6125N
 ```
 
 Windows 11 detects IPP and uses the **inbox class driver** — no legacy
@@ -59,7 +59,7 @@ With Bonjour: Settings → Printers & scanners → **Add device** — the
 `Phaser6125` printer appears automatically.
 
 Without Bonjour: *The printer that I want isn't listed* →
-*Select a shared printer by name* → `http://<this-pc-ip>:8631/ipp/print/Phaser6125`
+*Select a shared printer by name* → `http://<this-pc-ip>:8631/ipp/print/Xerox_Printer_6125N`
 
 Windows 11 uses the inbox IPP class driver — no legacy V3/V4 driver needed.
 
@@ -67,8 +67,8 @@ Windows 11 uses the inbox IPP class driver — no legacy V3/V4 driver needed.
 
 ```bat
 phaser6125-pappl.exe server -o server-port=8631
-phaser6125-pappl.exe add -d Phaser6125 -m xerox_phaser_6125n -v socket://192.168.178.10:9100
-phaser6125-pappl.exe submit -d Phaser6125 document.pdf
+phaser6125-pappl.exe add -d "Xerox Printer 6125N" -m xerox_phaser_6125n -v socket://192.168.178.10:9100
+phaser6125-pappl.exe submit -d "Xerox Printer 6125N" document.pdf
 phaser6125-pappl.exe printers
 phaser6125-pappl.exe jobs
 ```

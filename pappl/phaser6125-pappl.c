@@ -109,7 +109,7 @@ static const PaperSize paper_sizes[] = {
 /* ------------------------------------------------------------------ */
 
 static pappl_pr_driver_t phaser6125_drivers[] = {
-    { "xerox_phaser_6125n",   "Xerox Phaser 6125N",           "MFG:XEROX;MDL:Phaser 6125N;CMD:HBPL;",           NULL },
+    { "xerox_phaser_6125n",   "Xerox Printer 6125N",           "MFG:XEROX;MDL:Phaser 6125N;CMD:HBPL;",           NULL },
     { "fuji_xerox_dpc525a",   "Fuji Xerox DocuPrint C525A",   "MFG:FUJI XEROX;MDL:DocuPrint C525A;CMD:HBPL;",   NULL },
 };
 #define NUM_DRIVERS ((int)(sizeof(phaser6125_drivers) / sizeof(phaser6125_drivers[0])))
@@ -853,7 +853,7 @@ static pappl_system_t *system_cb(int num_options, cups_option_t *options,
      * Advertise on the configured port; rp points at the default queue. */
     if (port <= 0) port = 8631;
     if (!g_mdns)
-        g_mdns = mdns_start("Phaser6125N", (uint16_t)port, "ipp/print/Phaser6125");
+        g_mdns = mdns_start("Xerox Printer 6125N", (uint16_t)port, "ipp/print/Phaser6125");
 
     /* Register MIME filters: common input formats → our HBPL format.
      * The filter callback runs gs → PPM → hbpl_core for each job. */

@@ -1,10 +1,10 @@
 @echo off
-REM install-phaser6125.bat — install the Phaser 6125N PAPPL print server on Windows 11.
+REM install-phaser6125.bat — install the Xerox Printer 6125N PAPPL print server on Windows 11.
 REM
 REM What this does:
 REM   1. Copies phaser6125-pappl.exe + DLLs to %ProgramFiles%\Phaser6125PAPPL\
 REM   2. Checks for gswin64c.exe (Ghostscript) — see note below
-REM   3. Adds the Phaser 6125N printer pointing at socket://192.168.178.10:9100
+REM   3. Adds the Xerox Printer 6125N printer pointing at socket://192.168.178.10:9100
 REM   4. Starts the IPP server on port 8631
 REM
 REM After running this, other Windows 11 PCs can add the printer via:
@@ -20,7 +20,7 @@ REM and place gswin64c.exe in the same folder as phaser6125-pappl.exe.
 setlocal
 set INSTALL_DIR=%ProgramFiles%\Phaser6125PAPPL
 
-echo Installing Phaser 6125N PAPPL to %INSTALL_DIR% ...
+echo Installing Xerox Printer 6125N PAPPL to %INSTALL_DIR% ...
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
 copy /Y phaser6125-pappl.exe "%INSTALL_DIR%\" >nul
 copy /Y *.dll "%INSTALL_DIR%\" >nul
@@ -38,16 +38,16 @@ where dnssd.dll >nul 2>nul || (
     if not exist "%INSTALL_DIR%\dnssd.dll" (
         echo NOTE: dnssd.dll not found — mDNS auto-discovery disabled.
         echo       Other PCs can still add the printer manually via:
-        echo       http://^<this-pc^>:8631/ipp/print/Phaser6125
+        echo       http://^<this-pc^>:8631/ipp/print/Xerox_Printer_6125N
     )
 )
 
 echo.
-echo Adding printer Phaser6125 (socket://192.168.178.10:9100) ...
-"%INSTALL_DIR%\phaser6125-pappl.exe" add -d Phaser6125 -m xerox_phaser_6125n -v socket://192.168.178.10:9100
+echo Adding printer "Xerox Printer 6125N" (socket://192.168.178.10:9100) ...
+"%INSTALL_DIR%\phaser6125-pappl.exe" add -d "Xerox Printer 6125N" -m xerox_phaser_6125n -v socket://192.168.178.10:9100
 if errorlevel 1 (
     echo Printer may already exist — trying modify instead:
-    "%INSTALL_DIR%\phaser6125-pappl.exe" modify -d Phaser6125 -v socket://192.168.178.10:9100
+    "%INSTALL_DIR%\phaser6125-pappl.exe" modify -d "Xerox Printer 6125N" -v socket://192.168.178.10:9100
 )
 
 echo.
@@ -56,5 +56,5 @@ start "Phaser6125 PAPPL Server" /min "%INSTALL_DIR%\phaser6125-pappl.exe" server
 
 echo.
 echo Done. The printer is now available as an IPP Everywhere device.
-echo From other PCs: http://^<this-pc^>:8631/ipp/print/Phaser6125
+echo From other PCs: http://^<this-pc^>:8631/ipp/print/Xerox_Printer_6125N
 pause
