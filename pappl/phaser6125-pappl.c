@@ -874,9 +874,10 @@ static pappl_system_t *system_cb(int num_options, cups_option_t *options,
                                spooldir, logfile, loglevel, NULL, false);
     if (!system) return NULL;
 
-    /* Set explicit hostname — otherwise PAPPL may fall back to
-     * "localhost" which ends up in the mDNS adminurl (breaks Windows
-     * IPP classification: adminurl must resolve to this host). */
+    /* Set explicit hostname with .local suffix — PAPPL uses system->hostname
+     * verbatim in the mDNS adminurl, and Bonjour appends .local to the SRV
+     * target itself. Without .local the adminurl only resolves on hosts
+     * with mDNS-aware resolvers configured for the bare hostname. */
     {
         char hn[256];
 #ifdef _WIN32
@@ -888,6 +889,14 @@ static pappl_system_t *system_cb(int num_options, cups_option_t *options,
             papplSystemSetHostName(system, hn);
         }
 #endif
+        /* append .local if not already present */
+        if (!strstr(hn, ".local")) {
+            size_t l = strlen(hn);
+            if (l + 7 < sizeof hn) {
+                memcpy(hn + l, ".local", 7);
+                papplSystemSetHostName(system, hn);
+            }
+        }
     }
 
     /* Add TCP listeners ourselves: when a custom system_cb is used, PAPPL's
