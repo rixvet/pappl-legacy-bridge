@@ -81,6 +81,7 @@ echo "==> compiling (mingw-w64)"
 $MINGW -O2 -DWIN32 -D_WINDOWS -D_CRT_SECURE_NO_DEPRECATE -D_CRT_NONSTDC_NO_DEPRECATE \
     $INC -c pappl/phaser6125-pappl.c -o "$OBJ/phaser6125-pappl.o"
 $MINGW -O2 -DWIN32 -Inative -c native/hbpl_core.c -o "$OBJ/hbpl_core.o"
+$MINGW -O2 -DWIN32 -D_WINDOWS -Inative -c native/mdns_mini.c -o "$OBJ/mdns_mini.o"
 
 # --- Link against NuGet .lib files (MSVC COFF — mingw ld handles these) ---
 echo "==> linking"
@@ -95,7 +96,7 @@ LIBS="$LIBS $NUGET/zlib_native.1.2.11/build/native/lib/x64/Release/zlib.lib"
 LIBS="$LIBS $NUGET/libjpeg-turbo-v142.2.0.4.3/build/native/lib/x64/v142/Release/jpeg.lib"
 
 $MINGW -O2 -o "$PREFIX/phaser6125-pappl.exe" \
-    "$OBJ/phaser6125-pappl.o" "$OBJ/hbpl_core.o" \
+    "$OBJ/phaser6125-pappl.o" "$OBJ/hbpl_core.o" "$OBJ/mdns_mini.o" \
     $LIBS -lws2_32 -ladvapi32 -lshell32 -luser32 -lcrypt32 -lsecur32
 
 echo "==> OK: $PREFIX/phaser6125-pappl.exe ($(stat -c%s "$PREFIX/phaser6125-pappl.exe") bytes)"

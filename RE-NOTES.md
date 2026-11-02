@@ -521,13 +521,20 @@ LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
   Ghostscript (AGPL) auto-downloaded from ArtifexSoftware GitHub releases
   and extracted with 7z — no separate install needed.
   Alternative: `vcnet/` MSVC project for those with VS2022.
-- **mDNS/DNS-SD auto-discovery**: PAPPL registers `_ipp._tcp` automatically
-  in `papplSystemRun` when `dnssd.dll` (Apple Bonjour) is loadable — on
-  Windows via `LoadLibraryA("dnssd.dll")` (PAPPL vcnet/dns_sd.c), on Linux
-  via Avahi (verified in logs: "Registering DNS-SD name 'phaser'").
-  dnssd.dll is NOT bundled (Apple licensing) — install Bonjour Print
-  Services or drop dnssd.dll next to the .exe. Without it, clients use
-  the manual URL `http://<host>:8631/ipp/print/<name>`.
+- **mDNS/DNS-SD auto-discovery — eigen implementatie, geen Bonjour nodig**:
+  `native/mdns_mini.c` (~400 lines, RFC 6762) adverteert `_ipp._tcp.local` +
+  `_universal._tcp.local` via multicast 224.0.0.251:5353. Start in
+  `system_cb` via `mdns_start("Phaser6125N", port, "ipp/print/Phaser6125")`.
+  Verified: unicast PTR query → correct 519-byte response (ANCOUNT=4:
+  PTR+SRV+TXT+A); multicast announcements confirmed via tcpdump.
+  (WSL2 ziet eigen multicast niet terug door NAT — op echt Windows/Linux
+  werkt discovery gewoon.) PAPPL's eigen Avahi/Bonjour path werkt ook
+  als dnssd.dll aanwezig is, maar Apple's Bonjour SDK SLA staat
+  redistributie van dnssd.dll in eigen packages niet toe — vandaar
+  mdns_mini.c als open alternatief.
+- **Portable mode (geen admin nodig)**: poort 8631 is unprivileged (>1024),
+  spool gaat naar `%LocalAppData%`. `dist-windows/run-portable.bat` draait
+  direct uit de uitgepakte zip — geen installatie naar Program Files.
 - **DNS-SD/mDNS advertisement**: PAPPL does this automatically when not
   `private-server`; on Windows the app should register the printer so
   "Add printer" finds it without manual URI entry.

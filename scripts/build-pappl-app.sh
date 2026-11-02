@@ -19,10 +19,10 @@ echo "==> building pappl/phaser6125-pappl ($CC)"
 # shellcheck disable=SC2086
 $CC $CFLAGS -o pappl/phaser6125-pappl \
     pappl/phaser6125-pappl.c \
-    native/hbpl_core.c \
+    native/hbpl_core.c native/mdns_mini.c \
     -I native \
     $(pkg-config --cflags --libs pappl) \
-    -lm
+    -lm -lpthread
 
 echo "==> OK: $(ls -la pappl/phaser6125-pappl)"
 echo

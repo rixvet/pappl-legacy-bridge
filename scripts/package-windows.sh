@@ -47,6 +47,7 @@ fi
 
 # --- Add installer + readme ---
 cp dist-windows/install-phaser6125.bat "$DIST/"
+cp dist-windows/run-portable.bat "$DIST/"
 cp dist-windows/README.txt "$DIST/"
 
 # --- Zip ---

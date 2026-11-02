@@ -57,6 +57,10 @@
 #endif
 
 #include "../native/hbpl_core.h"
+#include "../native/mdns_mini.h"
+
+/* mDNS advertiser handle (started in system_cb when server runs) */
+static mdns_handle_t *g_mdns = NULL;
 
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
@@ -741,6 +745,13 @@ static pappl_system_t *system_cb(int num_options, cups_option_t *options,
 #endif
 
     papplSystemSetFooterHTML(system, APP_FOOTER);
+
+    /* Start minimal mDNS advertiser so Windows/macOS "Add printer" finds
+     * us automatically — no Bonjour/dnssd.dll needed (RFC 6762 multicast).
+     * Advertise on the configured port; rp points at the default queue. */
+    if (port <= 0) port = 8631;
+    if (!g_mdns)
+        g_mdns = mdns_start("Phaser6125N", (uint16_t)port, "ipp/print/Phaser6125");
 
     /* Register MIME filters: common input formats → our HBPL format.
      * The filter callback runs gs → PPM → hbpl_core for each job. */

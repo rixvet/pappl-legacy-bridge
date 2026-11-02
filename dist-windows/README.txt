@@ -13,23 +13,34 @@ deprecation plan.
 | `*.dll` | Runtime libraries (libpappl, libcups, libressl, …) |
 | `gs/` | **Bundled Ghostscript 10.08** (AGPL) — `gs/bin/gswin64c.exe` |
 | `install-phaser6125.bat` | One-click installer |
-| `dnssd.dll` | *Optional* — Apple Bonjour, enables mDNS auto-discovery |
+| `run-portable.bat` | **Portable start** — no admin needed, runs from the zip |
 
-## Installation
+## Quick start
 
-1. Run `install-phaser6125.bat` **as Administrator**.
+1. Unzip anywhere, double-click `run-portable.bat` (no admin needed), OR
+   run `install-phaser6125.bat` as Administrator for a system-wide install.
 2. The printer `Phaser6125` is added (socket://192.168.178.10:9100) and the
    IPP server starts on port 8631. Ghostscript is already bundled in `gs/`.
+   Change `192.168.178.10` in the .bat to your printer's IP.
+
+## Two ways to run
+
+**Portable (no admin rights needed):**
+Double-click `run-portable.bat` — runs straight from the unzipped folder.
+Port 8631 is unprivileged (>1024), spool goes to `%LocalAppData%`.
+
+**Installed:**
+Run `install-phaser6125.bat` as Administrator (installs to Program Files).
 
 ## Auto-discovery (mDNS / DNS-SD)
 
-PAPPL automatically advertises the printer via DNS-SD (`_ipp._tcp`) when
-`dnssd.dll` (Apple Bonjour) is available. Install **Bonjour Print Services
-for Windows** (https://support.apple.com/kb/DL999) or copy `dnssd.dll`
-next to the .exe — then Windows 11 finds the printer automatically in
-*Add device* without typing a URL.
+The server advertises itself via mDNS (`_ipp._tcp.local`) using a built-in
+minimal responder (RFC 6762) — **no Bonjour/Apple dnssd.dll needed**.
+Windows 11 finds the printer automatically in *Add device*.
+(Apple's Bonjour SDK license forbids redistributing dnssd.dll in your own
+package, hence the built-in responder.)
 
-Without Bonjour, use the manual URL below.
+If auto-discovery doesn't show it, use the manual URL below.
 
 ## Using from other Windows 11 PCs
 
