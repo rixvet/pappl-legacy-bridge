@@ -44,9 +44,16 @@
 #  include <unistd.h>
 #  include <sys/wait.h>
 #  include <signal.h>
+   typedef pid_t gs_pid_t;
 #else
 #  include <winsock2.h>
 #  include <ws2tcpip.h>
+#  include <windows.h>
+#  include <io.h>
+#  include <fcntl.h>
+#  include <process.h>
+   /* On Windows we store a PROCESS_INFORMATION-like struct in place of pid_t */
+   typedef struct { HANDLE hProcess; HANDLE hThread; } gs_pid_t;
 #endif
 
 #include "../native/hbpl_core.h"
@@ -238,19 +245,98 @@ static int wait_gs(pid_t pid)
     return 0;
 }
 
-#else /* _WIN32 — TODO: CreateProcess-based gs invocation */
+#else /* _WIN32 — CreateProcess-based gs invocation via gswin64c.exe */
 
-static FILE *start_gs(const char *input, int dpi, double pd_w, double pd_h, pid_t *pid_out)
+static FILE *start_gs(const char *input, int dpi, double pd_w, double pd_h, gs_pid_t *pid_out)
 {
-    /* TODO: Windows implementation using CreateProcess + gswin64c.exe */
-    (void)input; (void)dpi; (void)pd_w; (void)pd_h; (void)pid_out;
-    return NULL;
+    HANDLE read_pipe, write_pipe;
+    SECURITY_ATTRIBUTES sa;
+    PROCESS_INFORMATION pi;
+    STARTUPINFOA si;
+    char cmdline[1024];
+    char gs_exe[MAX_PATH];
+    gs_pid_t *proc;
+    FILE *fp;
+    DWORD written;
+
+    /* Locate gswin64c.exe: next to our .exe, or on PATH */
+    if (GetModuleFileNameA(NULL, gs_exe, MAX_PATH) > 0) {
+        char *slash = strrchr(gs_exe, '\\');
+        if (slash) {
+            snprintf(slash + 1, sizeof(gs_exe) - (slash + 1 - gs_exe), "gswin64c.exe");
+            if (GetFileAttributesA(gs_exe) == INVALID_FILE_ATTRIBUTES)
+                snprintf(gs_exe, sizeof gs_exe, "gswin64c.exe"); /* fall back to PATH */
+        }
+    } else {
+        snprintf(gs_exe, sizeof gs_exe, "gswin64c.exe");
+    }
+
+    sa.nLength = sizeof(sa);
+    sa.lpSecurityDescriptor = NULL;
+    sa.bInheritHandle = TRUE;
+
+    if (!CreatePipe(&read_pipe, &write_pipe, &sa, 0))
+        return NULL;
+    if (!SetHandleInformation(read_pipe, HANDLE_FLAG_INHERIT, 0)) {
+        CloseHandle(read_pipe); CloseHandle(write_pipe);
+        return NULL;
+    }
+
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdOutput = write_pipe;
+    si.hStdError  = write_pipe;
+    si.hStdInput  = GetStdHandle(STD_INPUT_HANDLE);
+
+    snprintf(cmdline, sizeof cmdline,
+             "\"%s\" -dQUIET -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS "
+             "-sDEVICE=ppmraw -sstdout=%%stderr -sOUTPUTFILE=%%stdout "
+             "-r%d -dDEVICEWIDTHPOINTS=%d -dDEVICEHEIGHTPOINTS=%d \"%s\"",
+             gs_exe, dpi, (int)pd_w, (int)pd_h, input);
+
+    memset(&pi, 0, sizeof(pi));
+    if (!CreateProcessA(NULL, cmdline, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
+        CloseHandle(read_pipe); CloseHandle(write_pipe);
+        return NULL;
+    }
+
+    CloseHandle(write_pipe);
+    CloseHandle(pi.hThread);
+
+    /* Store process handle where pid_out points (reinterpret as HANDLE) */
+    proc = pid_out;
+    proc->hProcess = pi.hProcess;
+    proc->hThread  = NULL;
+
+    /* Wrap the read end of the pipe as a FILE* */
+    {
+        int fd = _open_osfhandle((intptr_t)read_pipe, 0);
+        if (fd < 0) {
+            CloseHandle(read_pipe);
+            CloseHandle(pi.hProcess);
+            return NULL;
+        }
+        fp = _fdopen(fd, "rb");
+        if (!fp) {
+            _close(fd);
+            CloseHandle(pi.hProcess);
+            return NULL;
+        }
+    }
+    (void)written;
+    return fp;
 }
 
-static int wait_gs(pid_t pid)
+static int wait_gs(gs_pid_t pid_out)
 {
-    (void)pid;
-    return -1;
+    gs_pid_t *proc = &pid_out;
+    DWORD exit_code = 1;
+
+    if (WaitForSingleObject(proc->hProcess, INFINITE) == WAIT_OBJECT_0)
+        GetExitCodeProcess(proc->hProcess, &exit_code);
+    CloseHandle(proc->hProcess);
+    return exit_code == 0 ? 0 : -1;
 }
 
 #endif /* !_WIN32 */
@@ -271,13 +357,15 @@ static bool hbpl_filter_cb(pappl_job_t *job, pappl_device_t *device, void *data)
     Ppm pr;
     FILE *gsout;
     FILE *tmp;
-    pid_t gs_pid = 0;
+    gs_pid_t gs_pid;
     int pageno = 0;
     int rc;
     int dpi;
     int copies;
     char title[256], user[128], hostname[256];
     const char *job_name, *job_user;
+
+    memset(&gs_pid, 0, sizeof gs_pid);
 
     (void)data;
 
