@@ -32,6 +32,22 @@ Port 8631 is unprivileged (>1024), spool goes to `%LocalAppData%`.
 **Installed:**
 Run `install-phaser6125.bat` as Administrator (installs to Program Files).
 
+## Troubleshooting: "Sent to printer, Error" in Windows
+
+If Windows shows "Sent to printer, Error" (also after "Resume All"), the
+queue was auto-created with a **WSD port** (see Printer Properties → Ports →
+"WSD-..."). Our gateway speaks **IPP only** — WSD jobs fail. Fix:
+
+1. Delete the printer queue (right-click → Remove device).
+2. Re-add manually: Settings → Printers & scanners → Add device →
+   *The printer that I want isn't listed* → *Select a shared printer by name* →
+   `http://<this-pc-ip>:8631/ipp/print/Xerox_Printer_6125N`
+3. Windows then creates an **IPP port** and prints via IPP (verified working).
+
+Auto-discovery via mDNS finds the gateway, but Windows may assign a WSD port
+to the discovered device — always verify the port is IPP (not WSD) after
+adding.
+
 ## Adding the printer on Windows 11
 
 Settings → Bluetooth & devices → Printers & scanners → **Add device** →
