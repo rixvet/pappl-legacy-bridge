@@ -53,8 +53,19 @@ things to check:
    (or equivalent auto-setup toggle). With auto-setup ON, Windows installs
    discovered devices via WSD by default. With it OFF, the Add-device wizard
    uses IPP classification (TXT record → live IPP probe → driver bind).
-2. Delete the queue and re-add via the manual IPP URL above — Windows then
-   creates an IPP port and printing works (verified).
+2. **Remove stale WSD queues/ports** (Windows caches Function Discovery
+   results — old WSD entries respawn): run in PowerShell as admin:
+   ```powershell
+   Get-Printer | Where-Object { $_.Name -match 'Xerox|Phaser|6125' } | Remove-Printer
+   Get-PrinterPort | Where-Object { $_.Name -like 'WSD*' } | Remove-PrinterPort
+   Restart-Service fdPHost, FDResPub, Dnscache -Force
+   ```
+3. Re-add via the manual IPP URL above — Windows then creates an IPP port
+   and printing works (verified: jobs complete, bytes reach the printer).
+
+Note: WS-Discovery uses multicast group 239.255.255.250:3702 (captured with
+tshark during Add Device). Our gateway answers mDNS (UDP 5353) but not WSD,
+so a WSD-assigned port can never print to it.
 
 Our gateway advertises complete IPP Everywhere TXT via mDNS (rp, ty,
 product, pdl, URF, UUID=printer-uuid, mopria-certified, Color, Duplex,
