@@ -733,16 +733,16 @@ static pappl_system_t *system_cb(int num_options, cups_option_t *options,
     if (!system) return NULL;
 
     /* Add TCP listeners ourselves: when a custom system_cb is used, PAPPL's
-     * _papplMainloopRunServer only adds the Unix domain socket — the TCP
-     * listener code lives in default_system_cb which is never called.
-     * "0.0.0.0" binds all IPv4 interfaces on the configured port. */
-#ifndef _WIN32
+     * _papplMainloopRunServer only adds the Unix domain socket (non-Windows)
+     * — the TCP listener code lives in default_system_cb which is never
+     * called. "0.0.0.0" binds all IPv4 interfaces on the configured port.
+     * Works on both Linux and Windows (papplSystemAddListeners handles
+     * numeric hostnames as IPv4 on all platforms). */
     {
         const char *listen_host = cupsGetOption("listen-hostname", num_options, options);
         if (!listen_host) listen_host = "0.0.0.0";
         papplSystemAddListeners(system, listen_host);
     }
-#endif
 
     papplSystemSetFooterHTML(system, APP_FOOTER);
 
