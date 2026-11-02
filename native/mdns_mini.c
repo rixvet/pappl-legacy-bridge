@@ -136,7 +136,7 @@ static int build_announcement(mdns_handle_t *h, uint8_t *buf, int maxlen, int is
     snprintf(fqdn_srv, sizeof fqdn_srv, "%s._ipp._tcp.local", h->service_name);
     snprintf(fqdn_txt, sizeof fqdn_txt, "%s._ipp._tcp.local", h->service_name);
     snprintf(fqdn_ptr_ipp, sizeof fqdn_ptr_ipp, "_ipp._tcp.local");
-    snprintf(fqdn_ptr_univ, sizeof fqdn_ptr_univ, "_universal._tcp.local");
+    snprintf(fqdn_ptr_univ, sizeof fqdn_ptr_univ, "_universal._sub._ipp._tcp.local");
     snprintf(host_fqdn, sizeof host_fqdn, "%s.local", h->host_name);
 
     /* --- PTR _ipp._tcp.local → service --- */
@@ -201,24 +201,34 @@ static int build_announcement(mdns_handle_t *h, uint8_t *buf, int maxlen, int is
     pos += 10;
     rd_start = pos;
     {
-        char txt[512];
+        char txt[768];
         int tp = 0;
-        const char *items[16];
+        const char *items[24];
         int n = 0;
         char rp_full[200];
         snprintf(rp_full, sizeof rp_full, "rp=%s", h->rp);
+        /* IPP Everywhere / AirPrint TXT keys — Windows 11 matches on these */
         items[n++] = "txtvers=1";
         items[n++] = "qtotal=1";
         items[n++] = rp_full;
-        items[n++] = "adminurl=http://localhost:8631/";
-        items[n++] = "note=Xerox Phaser 6125N";
-        items[n++] = "PDL=application/pdf,image/jpeg,image/png,image/pwg-raster,application/vnd.xerox-hbpl";
+        items[n++] = "ty=Xerox Phaser 6125N";
+        items[n++] = "product=(Xerox Phaser 6125N)";
+        items[n++] = "pdl=application/pdf,image/pwg-raster,image/urf,image/jpeg,image/png,application/vnd.xerox-hbpl";
+        items[n++] = "URF=DM3";
         items[n++] = "UUID=db79605f-e2c4-34d2-736b-0dec0756a120";
+        items[n++] = "Duplex=F";
+        items[n++] = "Color=T";
         items[n++] = "TLS=none";
-        items[n++] = "UUID=db79605f-e2c4-34d2-736b-0dec0756a120";
-        items[n++] = "pdl=application/pdf,image/jpeg,image/png";
-        items[n++] = "product=(Phaser 6125N)";
+        items[n++] = "adminurl=http://localhost:8631/";
+        items[n++] = "note=Xerox Phaser 6125N (HBPL via PAPPL)";
         items[n++] = "priority=0";
+        items[n++] = "printer-state=3";
+        items[n++] = "air=none";
+        items[n++] = "kind=document";
+        items[n++] = "Fax=F";
+        items[n++] = "Scan=F";
+        items[n++] = "usb_MFG=XEROX";
+        items[n++] = "usb_MDL=Phaser 6125N";
         for (i = 0; i < n; i++) {
             int l = (int)strlen(items[i]);
             if (tp + 1 + l >= (int)sizeof txt) break;
