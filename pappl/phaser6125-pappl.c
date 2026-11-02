@@ -699,9 +699,14 @@ static bool snmp_status_cb(pappl_printer_t *printer)
         t = a->text;
         if (!t[0]) continue;
         if (strstr(t, "paper") || strstr(t, "Paper") || strstr(t, "Tray")) {
-            add_reasons |= PAPPL_PREASON_MEDIA_EMPTY;
-            /* "Printer is able to print" in the text → warning only, not blocking */
-            if (!strstr(t, "able to print")) blocking = true;
+            /* "Empty" is only for Manual Feed Slot. Tray alerts with
+             * "able to print" are warnings (media-low), not media-empty. */
+            if (strstr(t, "able to print"))
+                add_reasons |= PAPPL_PREASON_MEDIA_LOW;
+            else {
+                add_reasons |= PAPPL_PREASON_MEDIA_EMPTY;
+                blocking = true;
+            }
         } else if (strstr(t, "jam") || strstr(t, "Jam")) {
             add_reasons |= PAPPL_PREASON_MEDIA_JAM;
             blocking = true;

@@ -46,7 +46,9 @@ queue was auto-created with a **WSD port** (see Printer Properties → Ports →
 
 Auto-discovery via mDNS finds the gateway, but Windows may assign a WSD port
 to the discovered device — always verify the port is IPP (not WSD) after
-adding.
+adding. Also: the mDNS service name follows the queue name — run-portable.bat
+now removes a legacy "Phaser6125" queue and creates "Xerox Printer 6125N",
+so discovery shows the official name.
 
 ## Adding the printer on Windows 11
 

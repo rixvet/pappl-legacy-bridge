@@ -29,6 +29,12 @@ echo Ghostscript: %HERE%gs\bin\gswin64c.exe
 echo Spool dir:  %SPOOL%
 echo.
 
+REM Remove legacy queue name (mDNS advertised it as "Phaser6125")
+phaser6125-pappl.exe printers | findstr /C:"Phaser6125" >nul 2>nul
+if not errorlevel 1 (
+    echo Removing legacy queue "Phaser6125" ...
+    phaser6125-pappl.exe delete -d Phaser6125 2>nul
+)
 REM Check if printer already added; if not, add it
 phaser6125-pappl.exe printers | findstr /C:"Xerox Printer 6125N" >nul 2>nul
 if errorlevel 1 (
