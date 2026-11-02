@@ -49,7 +49,13 @@ set PRINTER_DEV=usbprint://./USB001
 `usbprint:` writes the raw HBPL stream straight to the Windows device file
 (the USB port, same mechanism as `copy /b out.bin` to that port). Use the
 USB port name from the old queue's port properties (USB001, USB002, ...).
-Coexists with the network option — just switch PRINTER_DEV.
+ — just switch PRINTER_DEV.
+
+For the USB00x device file to exist, Windows must bind **usbprint.sys**
+("USB Printing Support") to the printer: Device Manager → USB devices →
+Xerox Phaser 6125N (VID_046D&PID_3D61) → Update driver → Browse →
+"USB Printing Support". Then a USB00x port appears and usbprint: works.
+While the vendor driver owns the device, no USB00x device file exists. — just switch PRINTER_DEV.
 
 ## Two ways to run
 
