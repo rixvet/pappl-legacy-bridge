@@ -532,6 +532,16 @@ LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
   als dnssd.dll aanwezig is, maar Apple's Bonjour SDK SLA staat
   redistributie van dnssd.dll in eigen packages niet toe — vandaar
   mdns_mini.c als open alternatief.
+  **Verified on real Windows 11 (WINNIE)**: multicast PTR query from the
+  network gets responses from the Windows host with
+  `Phaser6125N._ipp._tcp.local` (ANCOUNT=4). The service IS discoverable
+  via mDNS — visible to macOS/iOS/Android/Linux clients.
+  **Windows 11 caveat**: Settings → "Add device" primarily uses
+  WS-Discovery (WSD), not mDNS. Windows users should use
+  "The printer that I want isn't listed" → enter
+  `http://<host-ip>:8631/ipp/print/Phaser6125` — the inbox IPP class
+  driver picks it up from there. (WS-Discovery/SOAP responder is a
+  possible future addition but much larger scope.)
 - **Portable mode (geen admin nodig)**: poort 8631 is unprivileged (>1024),
   spool gaat naar `%LocalAppData%`. `dist-windows/run-portable.bat` draait
   direct uit de uitgepakte zip — geen installatie naar Program Files.

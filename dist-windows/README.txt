@@ -32,15 +32,26 @@ Port 8631 is unprivileged (>1024), spool goes to `%LocalAppData%`.
 **Installed:**
 Run `install-phaser6125.bat` as Administrator (installs to Program Files).
 
+## Adding the printer on Windows 11
+
+Settings → Bluetooth & devices → Printers & scanners → **Add device** →
+*The printer that I want isn't listed* → *Select a shared printer by name* →
+enter:
+
+```
+http://<this-pc-ip>:8631/ipp/print/Phaser6125
+```
+
+Windows 11 detects IPP and uses the **inbox class driver** — no legacy
+V3/V4 driver needed. (Replace `<this-pc-ip>` with the PC's IP address.)
+
 ## Auto-discovery (mDNS / DNS-SD)
 
-The server advertises itself via mDNS (`_ipp._tcp.local`) using a built-in
-minimal responder (RFC 6762) — **no Bonjour/Apple dnssd.dll needed**.
-Windows 11 finds the printer automatically in *Add device*.
-(Apple's Bonjour SDK license forbids redistributing dnssd.dll in your own
-package, hence the built-in responder.)
-
-If auto-discovery doesn't show it, use the manual URL below.
+The server advertises `_ipp._tcp.local` via a built-in minimal mDNS
+responder (RFC 6762) — no Bonjour/Apple dnssd.dll needed. This makes the
+printer auto-discoverable on **macOS, iOS, Android and Linux** clients.
+Note: Windows 11's *Add device* UI primarily uses WS-Discovery, so on
+Windows use the manual URL above (the IPP endpoint is fully functional).
 
 ## Using from other Windows 11 PCs
 
