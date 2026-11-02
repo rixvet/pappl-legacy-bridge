@@ -700,7 +700,8 @@ static bool snmp_status_cb(pappl_printer_t *printer)
         if (!t[0]) continue;
         if (strstr(t, "paper") || strstr(t, "Paper") || strstr(t, "Tray")) {
             add_reasons |= PAPPL_PREASON_MEDIA_EMPTY;
-            blocking = true;  /* out of paper blocks printing */
+            /* "Printer is able to print" in the text → warning only, not blocking */
+            if (!strstr(t, "able to print")) blocking = true;
         } else if (strstr(t, "jam") || strstr(t, "Jam")) {
             add_reasons |= PAPPL_PREASON_MEDIA_JAM;
             blocking = true;
