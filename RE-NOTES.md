@@ -536,6 +536,16 @@ LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
   network gets responses from the Windows host with
   `Phaser6125N._ipp._tcp.local` (ANCOUNT=4). The service IS discoverable
   via mDNS — visible to macOS/iOS/Android/Linux clients.
+  **Windows discovery works via PAPPL's built-in DNS-SD**: on Windows 10/11
+  UDP 5353 is always occupied by the OS mDNS responder (svchost/dnscache)
+  or Bonjour (mDNSResponder.exe) — our mdns_mini.c cannot bind there (by
+  design it's a fallback for systems without a DNS-SD stack). PAPPL's own
+  path loads dnssd.dll via LoadLibrary (present when Bonjour installed,
+  which is common) and registers `_ipp._tcp` with full IPP Everywhere TXT
+  records automatically. Verified: after Create-Printer, multicast PTR
+  query from the LAN interface (192.168.178.46) returns Phaser6125.
+  mdns_mini.c fix: join multicast group on INADDR_ANY (getaddrinfo may
+  pick the wrong interface IP on multi-homed Windows hosts).
   **Windows 11 caveat**: Settings → "Add device" primarily uses
   WS-Discovery (WSD), not mDNS. Windows users should use
   "The printer that I want isn't listed" → enter

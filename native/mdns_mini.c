@@ -426,7 +426,7 @@ mdns_handle_t *mdns_start(const char *service_name, uint16_t port, const char *r
     /* Join multicast group */
     memset(&mreq, 0, sizeof mreq);
     inet_pton(AF_INET, MDNS_GROUP_V4, &mreq.imr_multiaddr);
-    mreq.imr_interface.s_addr = h->our_ip ? h->our_ip : INADDR_ANY;
+    mreq.imr_interface.s_addr = INADDR_ANY;  /* join on all interfaces — getaddrinfo may pick wrong IP on Windows */
     setsockopt(h->sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *)&mreq, sizeof mreq);
 
     h->running = 1;
