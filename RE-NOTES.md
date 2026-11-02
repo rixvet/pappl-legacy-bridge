@@ -520,6 +520,13 @@ USB route: remove vendor USB queue → Windows detects "USB Printing
 Support" → USB00x appears → usbprint://./USB00x works. Network (socket://)
 remains the primary, always-working route.
 
+**Update (verified):** even with usbprint.sys bound (Printer class
+USBPRINT\XEROXPHASER_6125N...USB001) and a queue on USB001,
+`CreateFile("\\\\.\\USB001")` returns err 2 (FILE_NOT_FOUND) on this
+Windows build — the DOS device name for usbprint ports is not reliably
+openable. So the usbprint: scheme is built in but effectively unused;
+use socket:// (network) or the Windows queue itself for USB.
+
 ### WSD research (2026-11-02, repos in /home/rick/src/wsd-research)
 
 Cloned b1tninja/fakeprint (Rust fake WSD+IPP printer) and roncapat/WSD-python
