@@ -548,9 +548,18 @@ LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
 - **Linux packaging (optional)**: `pappl-retrofit` (legacy-printer-app.c)
   can wrap our PPD + CUPS filter out-of-the-box for Snap packaging
   (Linux only — libcupsfilters/libppd have no Windows build).
-- **Status/supplies (low priority)**: printer HTTP page (CentreWare IS)
-  for toner levels — non-original toners don't report levels anyway,
-  SNMP is v1-only. Skip unless original cartridges are used.
+- **SNMP→IPP status bridge — DONE**: `native/snmp_poll.c` (own minimal
+  SNMPv1 BER client, no net-snmp dep) polls the Printer-MIB over UDP/161
+  (community "public"). Strategy: 1 GET sysDescr (online check) + 1 GET
+  hrDeviceStatus + short GETNEXT count walk + chunked multi-OID GETs
+  (batch=4 for alerts with long texts, 10 for supplies — printer returns
+  tooBig on larger batches). Maps prtMarkerSuppliesTable → IPP
+  marker-levels/names/types/colors and prtAlertTable → printer-state-reasons
+  (text-based matching: "paper"→media-empty, "Toner"→toner-low, etc.).
+  Verified via ipptool: marker-levels=-1,-1,-1,-1,80,100 (CMYK unknown for
+  non-Xerox toners, Imaging Unit 80%, Fuser 100%), printer-state-reasons
+  = media-empty,toner-low with tray open. PAPPL status_cb wired in
+  driver_cb (has_supplies=true).
 - **Real-hardware Windows test**: the .exe is verified under wine64
   (--help renders, PE32+ valid) and the HBPL output is byte-identical
   to the CUPS filter, but a full end-to-end print on real Windows 11

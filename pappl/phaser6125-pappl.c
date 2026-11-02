@@ -58,6 +58,7 @@
 
 #include "../native/hbpl_core.h"
 #include "../native/mdns_mini.h"
+#include "../native/snmp_poll.h"
 
 /* mDNS advertiser handle (started in system_cb when server runs) */
 static mdns_handle_t *g_mdns = NULL;
@@ -599,6 +600,106 @@ static bool dummy_rendjob(pappl_job_t *job, pappl_pr_options_t *options, pappl_d
 { (void)job; (void)options; (void)device; return true; }
 
 /* ------------------------------------------------------------------ */
+/* SNMP → IPP status bridge                                            */
+/*                                                                     */
+/* PAPPL calls status_cb when it needs fresh printer status.  We poll  */
+/* the physical printer via SNMPv1 (Printer-MIB) and translate to      */
+/* pappl_supply_t[] + printer-state-reasons.                           */
+/* ------------------------------------------------------------------ */
+
+static const char *snmp_host_from_device_uri(const char *uri, char *hostbuf, size_t hostlen)
+{
+    /* socket://192.168.178.10:9100 → "192.168.178.10" */
+    const char *p = uri;
+    const char *colon, *slash;
+    size_t n;
+    if (!strncmp(p, "socket://", 9)) p += 9;
+    else if (!strncmp(p, "usb://", 6)) return NULL;
+    else if (!strncmp(p, "file:", 5)) return NULL;
+    colon = strchr(p, ':');
+    slash = strchr(p, '/');
+    n = (colon && (!slash || colon < slash)) ? (size_t)(colon - p)
+        : (slash ? (size_t)(slash - p) : strlen(p));
+    if (n >= hostlen) n = hostlen - 1;
+    memcpy(hostbuf, p, n);
+    hostbuf[n] = 0;
+    return hostbuf;
+}
+
+static bool snmp_status_cb(pappl_printer_t *printer)
+{
+    const char *uri = papplPrinterGetDeviceURI(printer);
+    char host[64];
+    snmp_status_t st;
+    pappl_supply_t supplies[PAPPL_MAX_SUPPLY];
+    pappl_preason_t add_reasons = PAPPL_PREASON_NONE;
+    int nsup = 0;
+
+    if (!uri || !snmp_host_from_device_uri(uri, host, sizeof host)) {
+        /* file:/usb: device — no SNMP */
+        papplPrinterSetReasons(printer, PAPPL_PREASON_NONE, PAPPL_PREASON_OFFLINE);
+        return true;
+    }
+
+    if (snmp_poll_printer(host, "public", &st) != 0) {
+        /* printer unreachable */
+        papplPrinterSetReasons(printer, PAPPL_PREASON_OFFLINE, PAPPL_PREASON_NONE);
+        return true;
+    }
+
+    /* Map supplies */
+    for (int i = 0; i < st.num_supplies && nsup < PAPPL_MAX_SUPPLY; i++) {
+        snmp_supply_t *s = &st.supplies[i];
+        pappl_supply_t *ps = &supplies[nsup++];
+        memset(ps, 0, sizeof *ps);
+        snprintf(ps->description, sizeof ps->description, "%s", s->description);
+        ps->level = s->level_pct;  /* 0-100 or -1 */
+        ps->is_consumed = true;
+        /* color: Printer-MIB colorIndex 1=cyan 2=magenta 3=yellow 4=black */
+        switch (s->color) {
+        case 1: ps->color = PAPPL_SUPPLY_COLOR_CYAN; break;
+        case 2: ps->color = PAPPL_SUPPLY_COLOR_MAGENTA; break;
+        case 3: ps->color = PAPPL_SUPPLY_COLOR_YELLOW; break;
+        case 4: ps->color = PAPPL_SUPPLY_COLOR_BLACK; break;
+        default: ps->color = PAPPL_SUPPLY_COLOR_NO_COLOR; break;
+        }
+        /* type from description */
+        if (strstr(s->description, "Toner")) ps->type = PAPPL_SUPPLY_TYPE_TONER_CARTRIDGE;
+        else if (strstr(s->description, "Imaging")) ps->type = PAPPL_SUPPLY_TYPE_OPC;
+        else if (strstr(s->description, "Fuser")) ps->type = PAPPL_SUPPLY_TYPE_FUSER;
+        else ps->type = PAPPL_SUPPLY_TYPE_OTHER;
+    }
+    papplPrinterSetSupplies(printer, nsup, supplies);
+
+    /* Map alerts → reasons (match on text — this printer uses group=3 for
+     * everything, so group-based mapping is unreliable) */
+    for (int i = 0; i < st.num_alerts; i++) {
+        snmp_alert_t *a = &st.alerts[i];
+        const char *t;
+        if (a->severity <= 1) continue;  /* skip informational (power saver etc.) */
+        t = a->text;
+        if (!t[0]) continue;
+        if (strstr(t, "paper") || strstr(t, "Paper") || strstr(t, "Tray"))
+            add_reasons |= PAPPL_PREASON_MEDIA_EMPTY;
+        else if (strstr(t, "Toner") || strstr(t, "toner") || strstr(t, "ink"))
+            add_reasons |= PAPPL_PREASON_TONER_LOW;
+        else if (strstr(t, "jam") || strstr(t, "Jam"))
+            add_reasons |= PAPPL_PREASON_MEDIA_JAM;
+        else if (strstr(t, "over") && (strstr(t, "Cover") || strstr(t, "cover") || strstr(t, "door") || strstr(t, "Door")))
+            add_reasons |= PAPPL_PREASON_COVER_OPEN;
+        else if (a->severity >= 4)
+            add_reasons |= PAPPL_PREASON_OTHER;
+    }
+    if (st.device_status == 6) add_reasons |= PAPPL_PREASON_OFFLINE;
+    papplPrinterSetReasons(printer, add_reasons, PAPPL_PREASON_NONE);
+
+    papplLogPrinter(printer, PAPPL_LOGLEVEL_INFO,
+                    "SNMP status: %d supplies, %d alerts, device_status=%d, reasons=0x%x",
+                    nsup, st.num_alerts, st.device_status, (unsigned)add_reasons);
+    return true;
+}
+
+/* ------------------------------------------------------------------ */
 /* Driver callback: set capabilities                                   */
 /* ------------------------------------------------------------------ */
 
@@ -689,8 +790,9 @@ static bool driver_cb(pappl_system_t *system, const char *driver_name,
     data->content_default = PAPPL_CONTENT_AUTO;
     data->quality_default = IPP_QUALITY_NORMAL;
 
-    /* No supplies reporting (non-original toners, SNMP unreliable) */
-    data->has_supplies = false;
+    /* Supplies + status via SNMP bridge to the physical printer */
+    data->has_supplies = true;
+    data->status_cb    = snmp_status_cb;
 
     return true;
 }
