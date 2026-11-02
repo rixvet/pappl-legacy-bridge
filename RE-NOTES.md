@@ -366,6 +366,15 @@ een complete PJL/HBPL stream — die stuur je raw naar de poort:
    copy /b C:\temp\colorpage.hbpl \\.\USB001
    ```
 
+   **Update (2026-11-02, verified on WINNIE):** `\\.\USB00x` is **not** a
+   DOS device file on current Windows 11 — `copy /b` and `CreateFile` both
+   return err 2 (FILE_NOT_FOUND), and `dir \\.\` shows no USB entries.
+   USB print ports are only reachable via the print spooler
+   (OpenPrinter/WritePrinter), not as device files. Route B does not work
+   on Windows 11 24H2+; use route A (vendor queue) or route C
+   (usbipd+CUPS) for USB, or the network (socket://) via our PAPPL gateway
+   (section 12, fully verified).
+
 ### C. WSL2 + usbipd + CUPS usb:// (onze native driver, end-to-end)
 
 `usbipd` (gratis, `winget install usbipd`) richt een USB-device door naar
