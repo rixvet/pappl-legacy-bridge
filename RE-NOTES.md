@@ -505,6 +505,21 @@ LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
 - `pappl submit -d phaser -o printer-resolution=600x600dpi tests/colorpage.pdf`
   → byte-identical as well
 
+### USB via usbprint: scheme (2026-11-02, verified on WINNIE)
+
+Added a `usbprint:` device scheme (papplDeviceAddScheme; CreateFile/WriteFile
+direct — PAPPL's file: runs stat() which fails on Windows device files).
+Device URI: `usbprint://./USB001` writes raw HBPL to the USB00x device file
+(same mechanism as `copy /b out.bin` to that port).
+
+**Caveat (verified):** the USB00x device file only exists when Windows
+recognizes the device as a USB printer (usbprint.sys loaded) AND a queue is
+bound to that port. With the vendor driver bound to the PnP port
+(Port_#0011.Hub_#0001), no USB00x device file exists (CreateFile err 2).
+USB route: remove vendor USB queue → Windows detects "USB Printing
+Support" → USB00x appears → usbprint://./USB00x works. Network (socket://)
+remains the primary, always-working route.
+
 ### WSD research (2026-11-02, repos in /home/rick/src/wsd-research)
 
 Cloned b1tninja/fakeprint (Rust fake WSD+IPP printer) and roncapat/WSD-python
