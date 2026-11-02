@@ -535,10 +535,13 @@ LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
 - **Portable mode (geen admin nodig)**: poort 8631 is unprivileged (>1024),
   spool gaat naar `%LocalAppData%`. `dist-windows/run-portable.bat` draait
   direct uit de uitgepakte zip — geen installatie naar Program Files.
-- **DNS-SD/mDNS advertisement**: PAPPL does this automatically when not
-  `private-server`; on Windows the app should register the printer so
-  "Add printer" finds it without manual URI entry.
-- **Linux packaging**: `pappl-retrofit` (legacy-printer-app.c) can wrap our
-  PPD + CUPS filter out-of-the-box for Snap packaging (Linux only).
-- **Status/supplies**: printer HTTP page (CentreWare IS) for toner levels —
-  TODO, non-original toners don't report levels anyway. SNMP is v1-only.
+- **Linux packaging (optional)**: `pappl-retrofit` (legacy-printer-app.c)
+  can wrap our PPD + CUPS filter out-of-the-box for Snap packaging
+  (Linux only — libcupsfilters/libppd have no Windows build).
+- **Status/supplies (low priority)**: printer HTTP page (CentreWare IS)
+  for toner levels — non-original toners don't report levels anyway,
+  SNMP is v1-only. Skip unless original cartridges are used.
+- **Real-hardware Windows test**: the .exe is verified under wine64
+  (--help renders, PE32+ valid) and the HBPL output is byte-identical
+  to the CUPS filter, but a full end-to-end print on real Windows 11
+  with the physical printer is still pending (needs a Windows host).
