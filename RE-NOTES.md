@@ -544,6 +544,8 @@ LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
   which is common) and registers `_ipp._tcp` with full IPP Everywhere TXT
   records automatically. Verified: after Create-Printer, multicast PTR
   query from the LAN interface (192.168.178.46) returns Phaser6125.
+  **CONFIRMED: printer appears in Windows 11 "Add device" auto-discovery**
+  (user-verified on WINNIE, 2026-11-02).
   mdns_mini.c fix: join multicast group on INADDR_ANY (getaddrinfo may
   pick the wrong interface IP on multi-homed Windows hosts).
   **Windows 11 caveat**: Settings → "Add device" primarily uses
