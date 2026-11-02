@@ -15,3 +15,4 @@ re/build/*
 !re/build/alc-*.sq21
 __pycache__/
 pappl/phaser6125-pappl
+build-mingw/

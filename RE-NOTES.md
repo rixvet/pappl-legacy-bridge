@@ -507,11 +507,18 @@ LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
 
 ### TODO
 
-- **Windows build**: `start_gs()` has a `#ifdef _WIN32` stub — implement via
-  `CreateProcess` + `gswin64c.exe`. PAPPL builds on Windows via `vcnet/*.vcxproj`
-  (MSVC, NuGet: libcups3_native, libjpeg-turbo, libpng, zlib). Goal: ship a
-  single .exe + bundled Ghostscript that Windows 11 users run to get the
-  printer as an IPP Everywhere device.
+- **Windows build — DONE (mingw cross-compile, no VS2022 needed)**:
+  `scripts/build-windows-mingw.sh` downloads the prebuilt MSVC .lib files from
+  NuGet (libpappl1_native 1.4.12, libcups2_native 2.4.20, libressl, libjpeg-turbo,
+  libpng, zlib), compiles with `x86_64-w64-mingw32-gcc` and links against the
+  .lib files (mingw ld handles MSVC COFF). Result: `build-mingw/phaser6125-pappl.exe`
+  (PE32+ x86-64, 640 KB, only 4 DLL deps: KERNEL32, msvcrt, libcups2.dll,
+  libpappl1.dll). Verified under wine64: `--help` shows full PAPPL usage.
+  `start_gs()` _WIN32 path uses CreateProcess + gswin64c.exe (found next to
+  the .exe or on PATH). Packaging: `scripts/package-windows.sh` →
+  `Phaser6125N-PAPPL-win64.zip` (2.1 MB, exe + 11 DLLs + install-phaser6125.bat
+  + README.txt). User adds gswin64c.exe (Ghostscript 10.x) themselves.
+  Alternative: `vcnet/` MSVC project for those with VS2022.
 - **DNS-SD/mDNS advertisement**: PAPPL does this automatically when not
   `private-server`; on Windows the app should register the printer so
   "Add printer" finds it without manual URI entry.
