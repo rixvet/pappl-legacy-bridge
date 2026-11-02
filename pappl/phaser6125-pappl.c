@@ -740,6 +740,55 @@ static bool snmp_status_cb(pappl_printer_t *printer)
 }
 
 /* ------------------------------------------------------------------ */
+/* usbprint: scheme — raw write to a Windows device file (\\.\USB001)  */
+/*                                                                     */
+/* PAPPL's built-in file: device runs stat() on the path, which fails   */
+/* on Windows device files.  usbprint: uses CreateFile directly.       */
+/* Usage: -v usbprint://./USB001                                       */
+/* ------------------------------------------------------------------ */
+
+#ifdef _WIN32
+
+static bool usbprint_open(pappl_device_t *device, const char *device_uri, const char *name)
+{
+    const char *res = strstr(device_uri, "://");
+    char path[256];
+    HANDLE h;
+    (void)name;
+
+    res = res ? res + 3 : device_uri;
+    /* "./USB001" → "\\.\USB001", "USB001" → "\\.\USB001" */
+    if (res[0] == '.' && res[1] == '/') res += 2;
+    snprintf(path, sizeof path, "\\\\.\\%s", res);
+
+    h = CreateFileA(path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    if (h == INVALID_HANDLE_VALUE) {
+        papplDeviceError(device, "Cannot open %s (err %lu)", path, GetLastError());
+        return false;
+    }
+    papplDeviceSetData(device, (void *)h);
+    return true;
+}
+
+static void usbprint_close(pappl_device_t *device)
+{
+    HANDLE h = (HANDLE)papplDeviceGetData(device);
+    if (h && h != INVALID_HANDLE_VALUE) CloseHandle(h);
+    papplDeviceSetData(device, NULL);
+}
+
+static ssize_t usbprint_write(pappl_device_t *device, const void *buffer, size_t bytes)
+{
+    HANDLE h = (HANDLE)papplDeviceGetData(device);
+    DWORD written = 0;
+    if (!h || h == INVALID_HANDLE_VALUE) return -1;
+    if (!WriteFile(h, buffer, (DWORD)bytes, &written, NULL)) return -1;
+    return (ssize_t)written;
+}
+
+#endif /* _WIN32 */
+
+/* ------------------------------------------------------------------ */
 /* Driver callback: set capabilities                                   */
 /* ------------------------------------------------------------------ */
 
@@ -918,6 +967,13 @@ static pappl_system_t *system_cb(int num_options, cups_option_t *options,
     }
 
     papplSystemSetFooterHTML(system, APP_FOOTER);
+
+#ifdef _WIN32
+    /* Register usbprint: scheme for raw Windows device files (\.\USB001) */
+    papplDeviceAddScheme("usbprint", PAPPL_DEVTYPE_CUSTOM_LOCAL, NULL,
+                         usbprint_open, usbprint_close, NULL, usbprint_write,
+                         NULL, NULL);
+#endif
 
     /* Start minimal mDNS advertiser so Windows/macOS "Add printer" finds
      * us automatically — no Bonjour/dnssd.dll needed (RFC 6762 multicast).
