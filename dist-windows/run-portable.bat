@@ -5,7 +5,7 @@ REM
 REM Usage:
 REM   1. Unzip Phaser6125N-PAPPL-win64.zip anywhere (e.g. USB stick, Downloads)
 REM   2. Double-click run-portable.bat
-REM   3. Add the printer:  phaser6125-pappl.exe add -d "Xerox Printer 6125N" -m xerox_phaser_6125n -v socket://%PRINTER_IP%:9100
+REM   3. Add the printer:  phaser6125-pappl.exe add -d "Xerox Printer 6125N" -m xerox_phaser_6125n -v socket://%PRINTER_IP%:9100 -o printer-device-id="MFG:Xerox;MDL:Printer 6125N;SN:LAL035151;CMD:HBPL,PWGRaster,URF,PDF,PS,JPEG,PNG,TXT;"
 REM   4. From other PCs:  http://<this-pc>:8631/ipp/print/Phaser6125
 REM      (or auto-discovery if Bonjour/dnssd.dll is present)
 
@@ -39,7 +39,7 @@ REM Check if printer already added; if not, add it
 phaser6125-pappl.exe printers | findstr /C:"Xerox Printer 6125N" >nul 2>nul
 if errorlevel 1 (
     echo Adding printer "Xerox Printer 6125N" (socket://%PRINTER_IP%:9100) ...
-    phaser6125-pappl.exe add -d "Xerox Printer 6125N" -m xerox_phaser_6125n -v socket://%PRINTER_IP%:9100
+    phaser6125-pappl.exe add -d "Xerox Printer 6125N" -m xerox_phaser_6125n -v socket://%PRINTER_IP%:9100 -o printer-device-id="MFG:Xerox;MDL:Printer 6125N;SN:LAL035151;CMD:HBPL,PWGRaster,URF,PDF,PS,JPEG,PNG,TXT;"
     if errorlevel 1 (
         echo Printer may already exist or add failed — continuing anyway.
     )

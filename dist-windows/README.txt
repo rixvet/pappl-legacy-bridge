@@ -15,6 +15,15 @@ deprecation plan.
 | `install-phaser6125.bat` | One-click installer |
 | `run-portable.bat` | **Portable start** — no admin needed, runs from the zip |
 
+## Device Information (Manufacturer / Model / Serial)
+
+The gateway reports IEEE-1284 device ID via IPP `printer-device-id`:
+`MFG:Xerox;MDL:Printer 6125N;SN:LAL035151;CMD:...` — Windows 11 Device
+Information shows Manufacturer=Xerox, Model=Printer 6125N,
+Serial=LAL035151 (read from the printer via SNMP prtGeneralSerialNumber).
+To change the serial for another unit, edit the `printer-device-id`
+option in the .bat add command.
+
 ## Quick start
 
 1. Unzip anywhere, double-click `run-portable.bat` (no admin needed), OR

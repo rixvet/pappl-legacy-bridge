@@ -758,6 +758,12 @@ static bool driver_cb(pappl_system_t *system, const char *driver_name,
         }
     }
 
+    /* Explicit IEEE-1284 device ID → Windows "Device Information" shows
+     * Manufacturer/Model from printer-device-id (MFG:/MDL:) */
+    if (attrs && *attrs)
+        ippAddString(*attrs, IPP_TAG_PRINTER, IPP_TAG_TEXT, "printer-device-id", NULL,
+                     "MFG:Xerox;MDL:Printer 6125N;SN:LAL035151;CMD:HBPL,PWGRaster,URF,PDF,PS,JPEG,PNG,TXT;");
+
     /* Printer-specific format (our HBPL stream) */
     data->format = HBPL_MIME;
 

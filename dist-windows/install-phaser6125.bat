@@ -47,7 +47,7 @@ where dnssd.dll >nul 2>nul || (
 
 echo.
 echo Adding printer "Xerox Printer 6125N" (socket://%PRINTER_IP%:9100) ...
-"%INSTALL_DIR%\phaser6125-pappl.exe" add -d "Xerox Printer 6125N" -m xerox_phaser_6125n -v socket://%PRINTER_IP%:9100
+"%INSTALL_DIR%\phaser6125-pappl.exe" add -d "Xerox Printer 6125N" -m xerox_phaser_6125n -v socket://%PRINTER_IP%:9100 -o printer-device-id="MFG:Xerox;MDL:Printer 6125N;SN:LAL035151;CMD:HBPL,PWGRaster,URF,PDF,PS,JPEG,PNG,TXT;"
 if errorlevel 1 (
     echo Printer may already exist — trying modify instead:
     "%INSTALL_DIR%\phaser6125-pappl.exe" modify -d "Xerox Printer 6125N" -v socket://%PRINTER_IP%:9100
