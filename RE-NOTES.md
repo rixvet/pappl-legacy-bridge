@@ -505,6 +505,24 @@ LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
 - `pappl submit -d phaser -o printer-resolution=600x600dpi tests/colorpage.pdf`
   → byte-identical as well
 
+### WSD research (2026-11-02, repos in /home/rick/src/wsd-research)
+
+Cloned b1tninja/fakeprint (Rust fake WSD+IPP printer) and roncapat/WSD-python
+(PyWSD, client-only lib). Findings:
+- fakeprint WSD module alone: **21k LOC Rust, 60 SOAP operations** (discovery
+  Probe/ProbeMatch/Hello, metadata transfer, full WSD Print incl. MTOM jobs,
+  eventing). Total project 66k LOC. WSD-python: 3k LOC but **client-side**
+  only (scan/get metadata) — not usable as a responder.
+- For us, WSD would need in C: discovery responder (UDP 3702 Probe/ProbeMatch
+  + Hello) ~400-600 lines, minimal SOAP/XML ~300-500, metadata templates
+  (ThisDevice+PrintService with SerialNumber) ~200, HTTP metadata endpoint on
+  the existing PAPPL HTTP server ~100 → **~1-1.5k LOC for discovery+metadata
+  only** (fixes Serial Number display + removes WSD-hang). Full WSD Print
+  (CreatePrinter/PrintJob/MTOM → HBPL) adds ~1.5-2k LOC → 2-4 weeks.
+- Recommendation: keep IPP-only + manual IPP-URL add (works, verified).
+  WSD metadata-only is possible later if Serial Number display matters;
+  do NOT advertise WSD without print ops (queue would pick WSD and fail).
+
 ### TODO
 
 - **Windows build — DONE (mingw cross-compile, no VS2022 needed)**:
