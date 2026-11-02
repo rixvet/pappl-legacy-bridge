@@ -24,6 +24,11 @@ Serial=LAL035151 (read from the printer via SNMP prtGeneralSerialNumber).
 To change the serial for another unit, edit the `printer-device-id`
 option in the .bat add command.
 
+Known limitation: Windows 11 Device Information shows Manufacturer and Model
+from the IPP printer-device-id (MFG:/MDL:), but **Serial Number only comes
+from WSD device metadata** — for a pure-IPP printer it shows "Unavailable".
+The SN= field is present in printer-device-id for clients that parse it.
+
 ## Quick start
 
 1. Unzip anywhere, double-click `run-portable.bat` (no admin needed), OR
