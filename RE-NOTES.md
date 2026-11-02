@@ -440,3 +440,82 @@ helemaal buiten de print stack — immuun voor deprecation. Route C
 Voor meerdere printers / een appliance: PAPPL (github.com/istopwg/pappl)
 of een Raspberry Pi + CUPS — onze repo is al compatibel getest op
 22.04/24.04/26.04 (`scripts/test-compat-distro.sh`).
+
+## 12. PAPPL printer application (driverless IPP, Windows-proof)
+
+`pappl/phaser6125-pappl.c` wraps the HBPL encoder (`native/hbpl_core.c`) as a
+[PAPPL](https://github.com/michaelrsweet/pappl) printer application. PAPPL is
+the reference implementation for IPP Everywhere / Mopria printer apps — it
+makes the Phaser 6125N appear as a **driverless IPP printer** on Windows 11
+(inbox class driver), macOS, iOS, Android and Linux. This is the long-term
+solution against the V3/V4 driver deprecation (§11): no vendor driver needed.
+
+### Architecture
+
+```
+Client (Windows/macOS/Linux) → IPP (PDF/PS/JPEG/PNG)
+  → PAPPL server (this app, TCP 8631 or Unix socket)
+  → MIME filter (hbpl_filter_cb: gs → ppmraw → hbpl_core → HBPL)
+  → device (socket://192.168.178.10:9100, usb:, file:)
+```
+
+The MIME filter follows the OpenPrinting "non-raster printer" pattern
+(openprinting.github.io/documentation/02-designing-printer-drivers):
+`papplSystemAddMIMEFilter(system, "application/pdf", "application/vnd.xerox-hbpl", cb, NULL)`.
+
+### Build & run (Linux, PAPPL 1.4.x)
+
+```sh
+# deps: libcups2-dev libavahi-client-dev + PAPPL 1.4.x installed in /usr/local
+bash scripts/build-pappl-app.sh
+
+LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl server -o server-port=8631 &
+LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
+    -m xerox_phaser_6125n -v socket://192.168.178.10:9100
+```
+
+### PAPPL 1.4.x gotchas (learned the hard way)
+
+- **Custom `system_cb` skips TCP listeners**: `_papplMainloopRunServer` only adds
+  the Unix domain socket when a custom system_cb is used. The TCP listener code
+  lives in `default_system_cb` (never called). Fix: call
+  `papplSystemAddListeners(system, "0.0.0.0")` inside our own `system_cb`.
+- **MIME filter signature**: `bool cb(pappl_job_t *job, pappl_device_t *device, void *data)`
+  — no doc_number, no options. Get options via `papplJobCreatePrintOptions(job, 0, true)`.
+- **Default resolution bug**: when the client doesn't send `printer-resolution`,
+  `options->printer_resolution[0]` is 300 (PAPPL internal default), NOT the
+  advertised `printer-resolution-default=600dpi`. Fix: check
+  `papplJobGetAttribute(job, "printer-resolution")` — if NULL, force 600 dpi.
+- **Validation** in `papplPrinterSetDriverData`: `format` without `printfile_cb`
+  → ERROR; all 5 raster callbacks required → use dummies; `raster_types` non-zero.
+- `cupsCopyString` doesn't exist in CUPS 2.4 — use `snprintf`.
+- `-o printer-resolution=600x600` is parsed as 600 **dpcm** — use `600x600dpi`.
+- `add` CLI: `-d NAME` is required (positional arg = filename).
+- `file:` device must exist before `add` (`touch` first).
+- Server CLI: no `-l`/`-d` short options for log/spool — use `-o log-file=...` etc.
+
+### Verification (all PASS)
+
+- `ipptool Get-Printer-Attributes` via TCP 8631: advertises
+  `printer-resolution-default=600dpi`, `document-format-supported` includes
+  pdf/ps/jpeg/png/text + `application/vnd.xerox-hbpl`
+- `ipptool Print-Job` (PDF, no explicit resolution, like Windows) → job accepted,
+  output **byte-identical** to the CUPS filter reference (after DATE/TIME/DNAME
+  normalisation), `@PJL SET RESOLUTION=600`
+- `pappl submit -d phaser -o printer-resolution=600x600dpi tests/colorpage.pdf`
+  → byte-identical as well
+
+### TODO
+
+- **Windows build**: `start_gs()` has a `#ifdef _WIN32` stub — implement via
+  `CreateProcess` + `gswin64c.exe`. PAPPL builds on Windows via `vcnet/*.vcxproj`
+  (MSVC, NuGet: libcups3_native, libjpeg-turbo, libpng, zlib). Goal: ship a
+  single .exe + bundled Ghostscript that Windows 11 users run to get the
+  printer as an IPP Everywhere device.
+- **DNS-SD/mDNS advertisement**: PAPPL does this automatically when not
+  `private-server`; on Windows the app should register the printer so
+  "Add printer" finds it without manual URI entry.
+- **Linux packaging**: `pappl-retrofit` (legacy-printer-app.c) can wrap our
+  PPD + CUPS filter out-of-the-box for Snap packaging (Linux only).
+- **Status/supplies**: printer HTTP page (CentreWare IS) for toner levels —
+  TODO, non-original toners don't report levels anyway. SNMP is v1-only.

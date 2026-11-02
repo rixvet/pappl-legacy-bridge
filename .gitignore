@@ -14,3 +14,4 @@ analysis/dpc525/C525A_LinuxE/Fuji_Xerox-DocuPrint_C525_A_AP-1.0-1.i386.rpm
 re/build/*
 !re/build/alc-*.sq21
 __pycache__/
+pappl/phaser6125-pappl
