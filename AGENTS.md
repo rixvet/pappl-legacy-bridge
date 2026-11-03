@@ -1,19 +1,19 @@
-# AGENTS.md — werkafspraken voor dit repo
+# AGENTS.md — working agreements for this repo
 
 ## Windows scripts
-- **Test-, debug- en capture-scripts: altijd PowerShell (.ps1)** — filters, pipes, loops werken daar betrouwbaar. Nooit `.bat` voor dit soort werk (`| head` e.d. bestaat niet in cmd).
-- `.bat` alleen voor eindgebruiker "dubbelklik" entrypoints (`dist-windows/run-portable.bat`, `install-phaser6125.bat`).
-- Windows-aanroepen vanuit WSL: schrijf een `.ps1` in `/mnt/c/temp/`, roep aan met `powershell.exe -ExecutionPolicy Bypass -File C:/temp/x.ps1` (forward slashes — backslashes geven escaping-ellende in bash/TS).
+- **Test, debug and capture scripts: always PowerShell (.ps1)** — filters, pipes and loops work reliably there. Never `.bat` for this kind of work (`| head` etc. does not exist in cmd).
+- `.bat` only for end-user "double-click" entrypoints (`dist-windows/run-portable.bat`, `install-phaser6125.bat`).
+- Calling Windows from WSL: write a `.ps1` in `/mnt/c/temp/` and run it with `powershell.exe -ExecutionPolicy Bypass -File C:/temp/x.ps1` (forward slashes — backslashes cause escaping pain in bash/TS).
 
 ## Packet captures / watchers
-- Gebruik `tshark` (indien aanwezig: `C:\Program Files\Wireshark\tshark.exe`) via een `.ps1` dat een background capture start, of tcpdump in WSL als watcher.
-- Liever een **achtergrond-watcher** (lange capture met live filter) dan korte for-loopjes — interactieve analyse achteraf.
-- Handige filters: mDNS `udp port 5353`, WSD `udp port 3702`, SSDP `udp port 1900`, IPP `tcp port 631 or 8631`, SNMP `udp port 161`.
+- Use `tshark` (if present: `C:\Program Files\Wireshark\tshark.exe`) via a `.ps1` that starts a background capture, or tcpdump in WSL as a watcher.
+- Prefer a **background watcher** (long capture with a live filter) over short for-loops — interactive analysis afterwards.
+- Useful filters: mDNS `udp port 5353`, WSD `udp port 3702`, SSDP `udp port 1900`, IPP `tcp port 631 or 8631`, SNMP `udp port 161`.
 
 ## Build & test
-- Linux builds: `bash scripts/build-pappl-app.sh`; Windows cross: `bash scripts/build-windows-mingw.sh`; package: `bash scripts/package-windows.sh`.
-- Altijd na een change: gcc + `clang -Weverything -Werror` + mingw compile check.
-- Verificatie: ipptool tests + byte-compare met CUPS filter (`re/verify-native.py`).
+- Linux builds: `bash scripts/build-pappl-app.sh`; Windows cross-compile: `bash scripts/build-windows-mingw.sh`; package: `bash scripts/package-windows.sh`.
+- Always after a change: gcc + `clang -Weverything -Werror` + mingw compile check.
+- Verification: ipptool tests + byte-compare against the CUPS filter (`re/verify-native.py`).
 
 ## Git
 - **Never push without explicit user permission** — permission is one-time per grant, ask again for the next push.

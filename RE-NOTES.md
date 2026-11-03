@@ -1,130 +1,130 @@
 # RE-NOTES — sq21/HBPL codec & native 64-bit driver
 
-Reverse-engineering resultaten voor de Xerox Phaser 6125N (Fuji Xerox HBPL,
-@DRDM=RASTER). Zie `ANALYSIS.md` voor de analyse van de originele 32-bit
-filter-chain. Alles hieronder is geverifieerd tegen de echte printer
-(192.168.178.10, raw JetDirect poort 9100).
+Reverse-engineering results for the Xerox Phaser 6125N (Fuji Xerox HBPL,
+@DRDM=RASTER). See `ANALYSIS.md` for the analysis of the original 32-bit
+filter chain. Everything below is verified against the real printer
+(192.168.178.10, raw JetDirect port 9100).
 
-## 1. Het sq21 raster-codec (identiek aan "XRC" uit foo2zjs)
+## 1. The sq21 raster codec (identical to "XRC" in foo2zjs)
 
 Single interleaved bitstream, MSB-first.
 
-- **Tokens** `HID[hsel][k]`, canonieke Huffman, 2 rijen:
-  - `k=0..4`: run van `run` pixels gekopieerd uit predictor `order[k]` (move-to-front)
-  - `k=5`: diff — 4 byte-diffs (HPE0) opgeteld bij het linkerpixel
-  - `k=6`: switch hsel-rij (code `11111` + één extra 0 bit)
-- **Runlengtes** 1..17057: HRN0 korte codes / `111` + 3-bit group + extra bits.
-  17057 = 674 + 14 bits (maximale codeerbare run; encoder chunkt langere runs).
-- **Byte diffs**: HPE0 codebook — identiek aan Dave Coffin's `put_diff()`/`get_diff()`
-  (bewezen: tabellen in Fuji's libsq21 == foo2hbpl1's XRC; zie foo2zjs PR #24 /
-  foomatic-db PR #59 — zelfde codec, andere container).
-- **Predictors** (semantisch, per pixel): 0=left 1=up 2=up-left 3=up-right 4=up+2right.
-  Buiten het beeld lezen als `ff ff ff ff` (sq21 pixbuf marges; rechterkant up-right /
-  up+2right raken de 0xff sentinel slot).
-- **Bit bookkeeping**: token index = `bdir - bit`; `bit = (run < 17057)` na runs,
-  `bit = 0` na een diff en na elke 17057-chunk. De MTF rotor (`order[]`) schuift
-  mee als `bdir != 0`. Encoder wisselt van hsel-rij bij `|stat| > 8` (emits HID[6] + one 0 bit).
+- **Tokens** `HID[hsel][k]`, canonical Huffman, 2 rows:
+  - `k=0..4`: run of `run` pixels copied from predictor `order[k]` (move-to-front)
+  - `k=5`: diff — 4 byte-diffs (HPE0) added to the left pixel
+  - `k=6`: switch hsel row (code `11111` + one extra 0 bit)
+- **Run lengths** 1..17057: HRN0 short codes / `111` + 3-bit group + extra bits.
+  17057 = 674 + 14 bits (maximum encodable run; encoder chunks longer runs).
+- **Byte diffs**: HPE0 codebook — identical to Dave Coffin's `put_diff()`/`get_diff()`
+  (proven: tables in Fuji's libsq21 == foo2hbpl1's XRC; see foo2zjs PR #24 /
+  foomatic-db PR #59 — same codec, different container).
+- **Predictors** (semantic, per pixel): 0=left 1=up 2=up-left 3=up-right 4=up+2right.
+  Outside the image read as `ff ff ff ff` (sq21 pixbuf margins; right edge up-right /
+  up+2right hit the 0xff sentinel slot).
+- **Bit bookkeeping**: token index = `bdir - bit`; `bit = (run < 17057)` after runs,
+  `bit = 0` after a diff and after each 17057 chunk. The MTF rotor (`order[]`) shifts
+  along when `bdir != 0`. Encoder switches hsel row when `|stat| > 8` (emits HID[6] + one 0 bit).
 - **End marker**: HID[6] + `111` + 1 bit padding (byte-aligned).
-- **Image layout**: (H+1) rows × (W+2) slots × 4 byte `[ff,R,G,B]`; row 0 = virtueel
-  all-ff; slot 0 = linker marge ff; slot W+1 = rechter sentinel ff.
+- **Image layout**: (H+1) rows × (W+2) slots × 4 bytes `[ff,R,G,B]`; row 0 = virtual
+  all-ff; slot 0 = left margin ff; slot W+1 = right sentinel ff.
 
-## 2. HBPL container (deze printer: @DRDM=RASTER, single interleaved stream)
+## 2. HBPL container (this printer: @DRDM=RASTER, single interleaved stream)
 
-- **PJL header**: vaste template, byte-exact uit capture `tests/testpage-600dpi.hbpl`
-  (1079 bytes; alleen DATE/TIME/DNAME/user/host/copies/resolution variëren).
-  Bevat o.a. `@PJL SET RENDERMODE=COLOR`, `@PJL SET JOBATTR="@DRDM=RASTER"`,
+- **PJL header**: fixed template, byte-exact from capture `tests/testpage-600dpi.hbpl`
+  (1079 bytes; only DATE/TIME/DNAME/user/host/copies/resolution vary).
+  Contains e.g. `@PJL SET RENDERMODE=COLOR`, `@PJL SET JOBATTR=\"@DRDM=RASTER\"`,
   `@PJL ENTER LANGUAGE=HBPL`.
-- **A-record** 12 bytes (eenmalig, direct na ENTER LANGUAGE).
-- **Per pagina**:
-  - C-record 78 bytes: marges u16le @24-27, pageno u32le @33-36 (1-based),
-    w u32le @39-42, h u32le @43-46, w/h nogmaals @70-77
-  - QR-record 12 bytes: total u32le @8-11 = 24 + payload lengte
+- **A-record** 12 bytes (once, right after ENTER LANGUAGE).
+- **Per page**:
+  - C-record 78 bytes: margins u16le @24-27, pageno u32le @33-36 (1-based),
+    w u32le @39-42, h u32le @43-46, w/h again @70-77
+  - QR-record 12 bytes: total u32le @8-11 = 24 + payload length
   - body 24 bytes (fixed): `18 00 00 00 00 01 00 00 10 32 04 00 a1 42 00 00 00 00 ff 00 00 00 00 00`
   - payload (sq21 stream)
   - `"SD"` 2 bytes
-- De head (C+QR+body) is een vaste template met 3 patch points:
+- The head (C+QR+body) is a fixed template with 3 patch points:
   `9a c4` w/h @51-58, `a2 c4` w/h @82-89, QR total @98-101.
-- **Job end**: `'B'` + `ESC "%-12345X"` + `"@PJL EOJ\n"` (19 bytes).
-- **Copies**: `@PJL SET COPIES=n`; pagina's worden NIET gerepliceerd in de stream.
-- NB: foo2hbpl1's XRC framing (@DRDM=XRC, 5-stream layout) wordt door deze
-  printer **geweigerd** — deze wil RASTER + single stream.
+- **Job end**: `'B'` + `ESC \"%-12345X\"` + `\"@PJL EOJ\n\"` (19 bytes).
+- **Copies**: `@PJL SET COPIES=n`; pages are NOT replicated in the stream.
+- NB: foo2hbpl1's XRC framing (@DRDM=XRC, 5-stream layout) is **rejected** by this
+  printer — it wants RASTER + single stream.
 
-## 3. FXR formaat (tussenstages van de originele chain)
+## 3. FXR format (intermediate stages of the original chain)
 
 - 44-byte header = 11× uint32 LE `[w,h,bpp,rowbytes,datasize,resX,resY,0,0,f9,f10]`
 - `f9`: 1 = raw RGB 24bpp, 2 = sq21 (f10=3)
-- FXM_ALC output = FXR header + sq21 payload (zonder 16-byte magic header);
-  FXM_HBPL stripped de FXR header (w/h zitten in de HBPL 9a/a2 records).
+- FXM_ALC output = FXR header + sq21 payload (without 16-byte magic header);
+  FXM_HBPL stripped the FXR header (w/h are in the HBPL 9a/a2 records).
 - sq21 magic = `0xc2c0cfba` (bytes `ba cf c0 c2`).
 
-## 4. PM2FXR crop-reg regel (afgeleid uit de PPD zelf)
+## 4. PM2FXR crop rule (derived from the PPD itself)
 
 - PPD `*ImageableArea <PageSize>/...: "left bottom right top"` in pt; `r = dpi/72`
 - `x0=round(left·r)`, `x1=round(right·r)`, `y0=in_h−round(top·r)`, `y1=in_h−round(bottom·r)`
-- pass-through (geen crop) als de input binnen het imageable area past
+- pass-through (no crop) when the input fits inside the imageable area
 - A4@600: crop @(94,94) → 4770×6829; Letter@600: @(94,94) → 4912×6412; A4@300: @(47,47) → 2385×3414
-- gs page sizes: A4@600 → 4958×7017 (gs rond 842×600/72=7016.67 → 7017) voor alle
-  aanroepvarianten; alleen expliciete `-g4958x7016` geeft 7016
-- FXM_ALC pad de breedte naar een veelvoud van 8 (4770→4776); pad pixels = `ff ff ff ff`
-- 6125N imageable marges: 11.28pt (~4mm) rondom
+- gs page sizes: A4@600 → 4958×7017 (gs rounds 842×600/72=7016.67 → 7017) for all
+  invocation variants; only explicit `-g4958x7016` gives 7016
+- FXM_ALC pads the width to a multiple of 8 (4770→4776); pad pixels = `ff ff ff ff`
+- 6125N imageable margins: 11.28pt (~4mm) on all sides
 
 ## 5. Windows driver (DPC525A DISM export, 64-bit)
 
 - `fxhl2zim.dll` = "Fuji Xerox HBPL Printer Driver" (64-bit PJL/HBPL output + image processing)
-- `fxhzdczd.dll` (1.5 MB) bevat de sq21 magic `ba cf c0 c2`
-- `fxzarl32.dll` = CentreWare Address Resolution Library (NIET de codec)
-- `fxhl2z.xrs` = resources (page sizes/marges), `fxhl2z.cdd` = color data, `fxhl2zp1.icm` = ICC
-- Conclusie: bruikbaar als 64-bit reference, niet blockerend (crop offsets kwamen uit de PPD).
+- `fxhzdczd.dll` (1.5 MB) contains the sq21 magic `ba cf c0 c2`
+- `fxzarl32.dll` = CentreWare Address Resolution Library (NOT the codec)
+- `fxhl2z.xrs` = resources (page sizes/margins), `fxhl2z.cdd` = color data, `fxhl2zp1.icm` = ICC
+- Conclusion: usable as 64-bit reference, not blocking (crop offsets came from the PPD).
 
 ## 6. Native driver (`native/foo2sq21hbpl.c` + `native/hbpl_core.c`)
 
-CUPS filter, libc only, native 64-bit (geen multilib). Interace zoals CUPS dat
-van filters verwacht: `foo2sq21hbpl job-id user title copies options [file]`,
-omgeving `PPD`.
+CUPS filter, libc only, native 64-bit (no multilib). Interface as CUPS expects
+from filters: `foo2sq21hbpl job-id user title copies options [file]`,
+environment `PPD`.
 
 Pipeline:
 1. parse options (`PageSize`/`PageRegion`, `FXOutputMode`→dpi (300/600),
-   `FXColorMode` Black→grijs, rest → kleur, `FXDocumentType`→FXDLUT block code)
-2. PPD lookup (`PaperDimension`, `ImageableArea` voor de page size)
-3. fork/exec `gs` (`-r{dpi} -dDEVICEWIDTHPOINTS= -dDEVICEHEIGHTPOINTS=` uit de PPD,
+   `FXColorMode` Black→gray, rest → color, `FXDocumentType`→FXDLUT block code)
+2. PPD lookup (`PaperDimension`, `ImageableArea` for the page size)
+3. fork/exec `gs` (`-r{dpi} -dDEVICEWIDTHPOINTS= -dDEVICEHEIGHTPOINTS=` from the PPD,
    `-sDEVICE=ppmraw -sOUTPUTFILE=%stdout`)
-4. per pagina: P6 parsen → crop (PM2FXR regel) → **per pixel kleurcalibratie**
-   (FXM_CC-equivalent, §9: kleur = 3Dlut(CST(rgb)), grijs = NTSC(CST(rgb)))
-   → expand naar 4-byte `[ff,R,G,B]` → breedte padden naar veelvoud van 8
-   (`ffffffff`) → sq21-encode → C/QR/body/payload/"SD" per pagina
-5. PJL header + A-record eenmalig; job trailer aan het eind
+4. per page: parse P6 → crop (PM2FXR rule) → **per-pixel color calibration**
+   (FXM_CC equivalent, §9: color = 3Dlut(CST(rgb)), gray = NTSC(CST(rgb)))
+   → expand to 4-byte `[ff,R,G,B]` → pad width to multiple of 8
+   (`ffffffff`) → sq21-encode → C/QR/body/payload/"SD" per page
+5. PJL header + A-record once; job trailer at the end
 
-Kleurcalibratie (standaard AAN; algoritme in §9, verificatie in §7):
-- CST tabellen: `native/cst_tables.h` (gegenereerd, in git —
-  `re/gen_cst_tables.py` uit `re/extract-tables.py`)
-- 3D LUT: `/usr/share/phaser6125/Phaser_6125N.dlut` (geïnstalleerd door
+Color calibration (ON by default; algorithm in §9, verification in §7):
+- CST tables: `native/cst_tables.h` (generated, in git —
+  `re/gen_cst_tables.py` from `re/extract-tables.py`)
+- 3D LUT: `/usr/share/phaser6125/Phaser_6125N.dlut` (installed by
   `scripts/install-native-driver.sh`)
-- env `FOO2SQ_CALIBRATE=0` schakelt calibratie uit (raw, of grijs-gemiddeld)
-- env `FOO2SQ_DLUT=<pad>` override voor het .dlut pad; zonder bruikbaar .dlut
-  valt de filter terug op CST-only (zoals FXM_CC zelf)
-- grijs gebruikt geen LUT (alleen CST + NTSC)
+- env `FOO2SQ_CALIBRATE=0` disables calibration (raw, or gray-averaged)
+- env `FOO2SQ_DLUT=<path>` overrides the .dlut path; without a usable .dlut
+  the filter falls back to CST-only (like FXM_CC itself)
+- gray uses no LUT (only CST + NTSC)
 
-De encoder is **exact lossless** (de officieuze FXM_ALC is near-lossless, ±1-2 per
-pixel — beide zijn geldige streams; onze payload is ~0.8% groter).
+The encoder is **exactly lossless** (the official FXM_ALC is near-lossless, ±1-2 per
+pixel — both are valid streams; our payload is ~0.8% larger).
 
 ### Core split (hbpl_core.c / hbpl_core.h)
 
-Sinds de PAPPL-integratie (zie §12) is de encoder opgesplitst:
-native/hbpl_core.c bevat de complete pixel pipeline (sq21 codec, HBPL
-container, FXM_CC calibratie, PPM reader, PJL header, per-page processor,
-trailer) als herbruikbare library — pure C99 + stdio, geen POSIX.  De CUPS
-filter (native/foo2sq21hbpl.c) is nu alleen een dunne main(): CUPS argv
-parsen, gs forken, en de PPM stream door hbpl_page() leiden.  Dezelfde core
-wordt hergebruikt door:
+Since the PAPPL integration (see §12) the encoder is split:
+native/hbpl_core.c contains the complete pixel pipeline (sq21 codec, HBPL
+container, FXM_CC calibration, PPM reader, PJL header, per-page processor,
+trailer) as a reusable library — pure C99 + stdio, no POSIX. The CUPS
+filter (native/foo2sq21hbpl.c) is now just a thin main(): parse CUPS argv,
+fork gs, and feed the PPM stream through hbpl_page(). The same core
+is reused by:
 - win/hbblenc.c — standalone Windows tool (PPM stdin → HBPL stdout)
 - pappl/phaser6125-pappl.c — PAPPL printer application (MIME filter:
   PDF → gs → PPM → hbpl_page() → device)
 
-Beide consumers zijn byte-identical geverifieerd (binary-identity regression
-tegen de geïnstalleerde CUPS filter).
+Both consumers are verified byte-identical (binary-identity regression
+against the installed CUPS filter).
 
-Build (schoon onder gcc -Wall -Wextra én clang -Weverything -Werror; getest
-op clang 14 t/m 21):
+Build (clean under gcc -Wall -Wextra and clang -Weverything -Werror; tested
+on clang 14 through 21):
 
 ```
 gcc   -O2 -Wall -Wextra -o foo2sq21hbpl native/foo2sq21hbpl.c native/hbpl_core.c -lm
@@ -132,332 +132,335 @@ clang -Weverything -Werror -Wno-unsafe-buffer-usage -Wno-unknown-warning-option 
       -O2 -o foo2sq21hbpl native/foo2sq21hbpl.c native/hbpl_core.c -lm
 ```
 
-`-Wno-unsafe-buffer-usage`: clang's experimentele C++ bounds-safety lint
-(zit vanaf clang 16 in `-Weverything`); in C niet op te lossen zonder
-`_Ptr` annotaties die gcc niet ondersteunt. `-Wno-unknown-warning-option`
-houdt de command line compatibel met clang ouder dan 16 (die kent de
-eerste vlag niet).
+`-Wno-unsafe-buffer-usage`: clang's experimental C++ bounds-safety lint
+(included in `-Weverything` since clang 16); in C not solvable without
+`_Ptr` annotations that gcc doesn't support. `-Wno-unknown-warning-option`
+keeps the command line compatible with clang older than 16 (which doesn't
+know the first flag).
 
-## 7. Verificatie
+## 7. Verification
 
-- `re/sq21dec.py` — pure-Python sq21 decoder (cross-checked tegen Dave Coffin's
+- `re/sq21dec.py` — pure-Python sq21 decoder (cross-checked against Dave Coffin's
   `hbpldecode.c`); CLI: `sq21dec.py <file> <W> <H> [offset] [out.raw]`
-- `re/sq21dec.c` — C port (~60x sneller: 12.5s → 0.21s per A4@600 pagina),
-  byte-identical output geverifieerd op alle captures; build als CLI én als
-  `libsq21dec.so` (ctypes). Bevat ook `sq21_expand` (crop+expand+pad in C).
-- `re/verify-native.py <input.ps|pdf> "<options>"` — end-to-end: structuur-asserts
-  (PJL/A/C/QR/body/SD/trailer) + per-pagina lossless round-trip vs een
-  standalone gs render. Gebruikt de C decoder; pagina's parallel (ctypes released
-  de GIL). A4@600 kleurpagina verifieert in ~1.5s.
-- `re/verify_model.c` — byte-exact model van de FXM_CC color stage (CST +
-  tetrahedral 3D LUT); parameters uit live gdb dumps van de 32-bit binary
+- `re/sq21dec.c` — C port (~60x faster: 12.5s → 0.21s per A4@600 page),
+  byte-identical output verified on all captures; build as CLI and as
+  `libsq21dec.so` (ctypes). Also contains `sq21_expand` (crop+expand+pad in C).
+- `re/verify-native.py <input.ps|pdf> \"<options>\"` — end-to-end: structure asserts
+  (PJL/A/C/QR/body/SD/trailer) + per-page lossless round-trip vs a
+  standalone gs render. Uses the C decoder; pages in parallel (ctypes releases
+  the GIL). A4@600 color page verifies in ~1.5s.
+- `re/verify_model.c` — byte-exact model of the FXM_CC color stage (CST +
+  tetrahedral 3D LUT); parameters from live gdb dumps of the 32-bit binary
   (`re/dump-params.gdb`: `cst-param.bin`, `dlut-param.bin`, `xyz2srgbtrc.bin`).
-  **Byte-exact** tegen ground truth: alle 256^3 kleuren (synth.fxr→synth-cc.fxr)
-  en een echte pagina (s3-pr.fxr→s4-cc.fxr, 500.990 px).
-- `re/calib.c` — oracle voor de driver: zelfde model, maar lezend uit het .dlut
-  bestand (zoals de driver). Bouw als CLI (FXR→FXR, cross-check vs ground truth)
-  én als `re/libcalib.so` (ctypes, voor verify-native.py). Byte-exact tegen
-  ground truth: synth (16.777.216 px), s3→s4 (500.990 px), gray-test→gray-out.
-- `re/extract-tables.py` + `re/gen_cst_tables.py` — halen de CST tabellen uit de
-  FXM_CC ELF en genereren `native/cst_tables.h` (in git; niet handmatig editten).
-- `re/FXM_CC-decompiled.c` — Ghidra decompilatie van de 32-bit FXM_CC (16
-  functions; `main` toont de CST→3Dlut volgorde). Regenereren:
+  **Byte-exact** against ground truth: all 256^3 colors (synth.fxr→synth-cc.fxr)
+  and a real page (s3-pr.fxr→s4-cc.fxr, 500,990 px).
+- `re/calib.c` — oracle for the driver: same model, but reading from the .dlut
+  file (like the driver does). Build as CLI (FXR→FXR, cross-check vs ground truth)
+  and as `re/libcalib.so` (ctypes, for verify-native.py). Byte-exact against
+  ground truth: synth (16,777,216 px), s3→s4 (500,990 px), gray-test→gray-out.
+- `re/extract-tables.py` + `re/gen_cst_tables.py` — extract the CST tables from the
+  FXM_CC ELF and generate `native/cst_tables.h` (in git; do not edit by hand).
+- `re/FXM_CC-decompiled.c` — Ghidra decompilation of the 32-bit FXM_CC (16
+  functions; `main` shows the CST→3Dlut order). Regenerate:
   `re/DecompileFxmCc.java` (Ghidra headless, Java script).
-- Getest & EXACT (verify-native.py, A4@600 colorpage.pdf, ~32.6M px/pagina):
-  raw (`FOO2SQ_CALIBRATE=0`), color gekalibreerd (`FXDocumentType` Normal én
-  Photo — twee verschillende DLUT blocks), gray gekalibreerd
-  (`FXColorMode=Black`), gray average, 1-page én 2-page (paginanummering +
-  stream alignment). De gekalibreerde round-trip vergelijkt tegen de oracle
-  (re/calib.c) — de driver is daarmee **byte-exact gelijk aan de originele
+- Tested & EXACT (verify-native.py, A4@600 colorpage.pdf, ~32.6M px/page):
+  raw (`FOO2SQ_CALIBRATE=0`), calibrated color (`FXDocumentType` Normal and
+  Photo — two different DLUT blocks), calibrated gray
+  (`FXColorMode=Black`), gray average, 1-page and 2-page (page numbering +
+  stream alignment). The calibrated round-trip compares against the
+  oracle (re/calib.c) — the driver is thus **byte-exact equal to the original
   FXM_CC transform**.
-- Eerdere tests & EXACT: A4@300, Letter@600, direct PDF input.
-- **Echte printer**: 1-page print (page count 8660→8661), 2-page print
-  (8661→8663), colorpage met meahow (8663→8664); job log toont `Completed`
-  met het juiste pagina-aantal. (Printer is gedeeld; teller staat nu op 8669 —
-  print zuinig met testpagina's.)
+- Earlier tests & EXACT: A4@300, Letter@600, direct PDF input.
+- **Real printer**: 1-page print (page count 8660→8661), 2-page print
+  (8661→8663), colorpage with meahow (8663→8664); job log shows `Completed`
+  with the right page count. (Printer is shared; counter is now at 8669 —
+  be frugal with test pages.)
 
-## 8. Installatie (native, 64-bit)
+## 8. Installation (native, 64-bit)
 
 ```
-sudo bash scripts/setup-cups-native.sh       # CUPS + ghostscript (geen i386!)
+sudo bash scripts/setup-cups-native.sh       # CUPS + ghostscript (no i386!)
 sudo bash scripts/install-native-driver.sh   # build+install filter, PPD, queue
-bash scripts/test-print.sh                   # drukt tests/colorpage.pdf af
+bash scripts/test-print.sh                   # prints tests/colorpage.pdf
 ```
 
 - filter → `/usr/lib/cups/filter/foo2sq21hbpl` (root:root 0755)
 - PPD → `/usr/share/cups/model/Xerox/en/Phaser_6125N-native.ppd`
-  (zelfde opties als de originele PPD; `*cupsFilter` wijst naar foo2sq21hbpl)
-- .dlut → `/usr/share/phaser6125/Phaser_6125N.dlut` (kleurcalibratie, §9; de
-  install script doet ook een `clang -Weverything -Werror` sanity build)
+  (same options as the original PPD; `*cupsFilter` points to foo2sq21hbpl)
+- .dlut → `/usr/share/phaser6125/Phaser_6125N.dlut` (color calibration, §9; the
+  install script also does a `clang -Weverything -Werror` sanity build)
 - queue `Phaser6125N` → `socket://192.168.178.10:9100`
 
-### CUPS "Printer drivers are deprecated" waarschuwing
+### CUPS "Printer drivers are deprecated" warning
 
-`lpadmin` print deze melding omdat PPD-gebaseerde drivers (PPD + filter in
-`/usr/lib/cups/filter`) in een toekomstige CUPS (3.x, OpenPrinting) worden
-afgeschaft ten gunste van driverless IPP. Voor deze setup is het loos alarm:
+`lpadmin` prints this message because PPD-based drivers (PPD + filter in
+`/usr/lib/cups/filter`) will be removed in a future CUPS (3.x, OpenPrinting) in favor
+of driverless IPP. For this setup it's a false alarm:
 
-- Ubuntu 22.04 ship CUPS 2.4.1 **mét** PPD/driver support; 22.04 is ondersteund
-  tot 2027 (en WSL2 kan daar nog langer op blijven).
-- De Phaser 6125N is een raw printer (poort 9100/515/80, **geen IPP**) — zonder
-  PPD+filter is er géén driverless/IPP-Everywhere mogelijk. PPD+filter is hier
-  de énige werkbare route.
-- Onze filter is standalone: printen kan altijd zonder CUPS via
-  `native/foo2sq21hbpl 1 <user> <title> 1 "<options>" <file> | nc 192.168.178.10 9100`
-  (de eerste testprints in deze sessie gingen precies zo).
-- Wil je ooit toch van de PPD af: zie "Toekomst: CUPS 3.x / driverless
-  (ippserver)" hieronder.
+- Ubuntu 22.04 ships CUPS 2.4.1 **with** PPD/driver support; 22.04 is supported
+  until 2027 (and WSL2 can stay on it even longer).
+- The Phaser 6125N is a raw printer (port 9100/515/80, **no IPP**) — without
+  PPD+filter there is NO driverless/IPP-Everywhere possible. PPD+filter is
+  the only workable route here.
+- Our filter is standalone: printing always works without CUPS via
+  `native/foo2sq21hbpl 1 <user> <title> 1 \"<options>\" <file> | nc 192.168.178.10 9100`
+  (the first test prints in this session went exactly like that).
+- If you ever want to move off the PPD: see "Future: CUPS 3.x / driverless
+  (ippserver)" below.
 
-### Compatibiliteit (getest in WSL distro's)
+### Compatibility (tested in WSL distros)
 
 | Ubuntu | CUPS | gcc | clang | ghostscript | status |
 |--------|------|-----|-------|-------------|--------|
-| 22.04 (deze WSL) | 2.4.1 | 11.4 | 14 | 9.55 | ✓ alles werkt (build, CUPS queue, print) |
-| 24.04 | 2.4.7 | 13.3 | 18 | 10.02 | ✓ alles werkt (gcc + clang -Weverything -Werror build, verify raw/gekalibreerd color/grijs EXACT, CUPS queue; print overgeslagen) |
-| 26.04 | 2.4.16 | 15.2 | 21 | 10.06 | ✓ alles werkt (gcc + clang -Weverything -Werror build, verify raw/gekalibreerd color/grijs EXACT, CUPS queue, **echte print** — teller 8669→8670, job Completed) |
+| 22.04 (this WSL) | 2.4.1 | 11.4 | 14 | 9.55 | ✓ everything works (build, CUPS queue, print) |
+| 24.04 | 2.4.7 | 13.3 | 18 | 10.02 | ✓ everything works (gcc + clang -Weverything -Werror build, verify raw/calibrated color/gray EXACT, CUPS queue; print skipped) |
+| 26.04 | 2.4.16 | 15.2 | 21 | 10.06 | ✓ everything works (gcc + clang -Weverything -Werror build, verify raw/calibrated color/gray EXACT, CUPS queue, **real print** — counter 8669→8670, job Completed) |
 
-Op 26.04 heeft de filter build `libc6-dev` nodig (standaard niet
-aanwezig) — `scripts/test-compat-distro.sh` installeert het mee.
+On 26.04 the filter build needs `libc6-dev` (not present by default) —
+`scripts/test-compat-distro.sh` installs it along.
 
-`scripts/test-compat-distro.sh` test de hele repo in een WSL distro
-(22.04/24.04/26.04): repo uitpakken, filter bouwen (gcc + clang
-`-Weverything -Werror`), verify-native draaien (raw + gekalibreerd),
-queue aanmaken, print (of `SKIP_PRINT=1`).
+`scripts/test-compat-distro.sh` tests the whole repo in a WSL distro
+(22.04/24.04/26.04): unpack repo, build filter (gcc + clang
+`-Weverything -Werror`), run verify-native (raw + calibrated),
+create queue, print (or `SKIP_PRINT=1`).
 
-### Zonder CUPS (fallback)
+### Without CUPS (fallback)
 
-`scripts/print-direct.sh <bestand.pdf|ps> ["options"]` — draait de filter
-direct en stuurt de HBPL stream naar `PRINTER_IP:9100` (raw JetDirect, `nc`).
-Bouwt de filter zelf als die er nog niet is. Werkt op elke Linux met
-gcc + ghostscript, zonder CUPS.
+`scripts/print-direct.sh <file.pdf|ps> [\"options\"]` — runs the filter
+directly and sends the HBPL stream to `PRINTER_IP:9100` (raw JetDirect, `nc`).
+Builds the filter itself if it isn't there yet. Works on any Linux with
+gcc + ghostscript, without CUPS.
 
-### Status ophalen (extra gimmick)
+### Fetching status (extra gimmick)
 
-`scripts/printer-status.py` — read-only status, twee bronnen:
-- **HTTP** (CentreWare webinterface): globale status, page count, papierladen,
-  supplies, laatste job-log regels. (De pagina's eindigen in een NUL-byte; die
-  wordt gestript.)
-- **SNMP**: deze printer spreekt **alleen SNMPv1**, community `public`
-  (`snmpwalk -v1 -c public …`); `prtMarkerSupplies` (RFC 1759) voor
+`scripts/printer-status.py` — read-only status, two sources:
+- **HTTP** (CentreWare web interface): global status, page count, paper trays,
+  supplies, last job-log lines. (The pages end in a NUL byte; it is stripped.)
+- **SNMP**: this printer speaks **only SNMPv1**, community `public`
+  (`snmpwalk -v1 -c public …`); `prtMarkerSupplies` (RFC 1759) for
   description/max/level.
 
 Env: `PRINTER_IP` (default 192.168.178.10), `SNMP_COMMUNITY`, `SNMP_TIMEOUT`.
-Bekende beperking: **toner-niveaus zijn niet afleesbaar** — de cartridges zijn
-niet-origineel, de printer meldt `--` (HTTP) / level -2 (SNMP). Imaging Unit
-en Fuser rapporteren wel percentages. (Gimmick/TODO: met originele toners
-zouden de niveaus hier direct leesbaar zijn.)
+Known limitation: **toner levels are not readable** — the cartridges are
+non-original, the printer reports `--` (HTTP) / level -2 (SNMP). Imaging Unit
+and Fuser do report percentages. (Gimmick/TODO: with original toners
+the levels would be directly readable here.)
 
-### Toekomst: CUPS 3.x / driverless (ippserver)
+### Future: CUPS 3.x / driverless (ippserver)
 
-CUPS 3.x schaft PPD+filter drivers af; de route is dan IPP Everywhere. Deze
-printer heeft zelf geen IPP, maar onze filter is een standalone binary (die de
-complete PJL/HBPL stream op stdout zet) — de migratie is klein:
+CUPS 3.x removes PPD+filter drivers; the route then is IPP Everywhere. This
+printer has no IPP itself, but our filter is a standalone binary (it writes the
+complete PJL/HBPL stream to stdout) — the migration is small:
 
-1. `cups-ipp-utils` installeren (bevat `ippeveprinter`; in CUPS 3.x heet dit
-   `ippserver`)
-2. de command wrapper installeren als CUPS command filter
+1. install `cups-ipp-utils` (contains `ippeveprinter`; in CUPS 3.x this is
+   called `ippserver`)
+2. install the command wrapper as a CUPS command filter
    (`scripts/ippeve-wrapper.sh` → `/usr/lib/cups/command/foo2sq21hbpl-ippeve`):
-   leest het document van stdin, roept de filter aan, schrijft HBPL naar stdout
-3. de printer als IPP service draaien — de output gaat naar de raw socket:
+   reads the document from stdin, calls the filter, writes HBPL to stdout
+3. run the printer as an IPP service — output goes to the raw socket:
    ```
-   ippeveprinter -m "Phaser 6125N" -M "Xerox" -l "Thuis" \
+   ippeveprinter -m "Phaser 6125N" -M "Xerox" -l "Home" \
        -D socket://192.168.178.10:9100 \
        -f application/pdf,application/postscript \
        -s 10,10 \
        -c /usr/lib/cups/command/foo2sq21hbpl-ippeve \
        "Phaser6125N"
    ```
-   (CUPS 3.x: `ippserver` met dezelfde opties.) Clients printen dan driverless
-   via IPP Everywhere naar deze host.
+   (CUPS 3.x: `ippserver` with the same options.) Clients then print driverless
+   via IPP Everywhere to this host.
 
-Nu niet nodig: 22.04/24.04/26.04 draaien allemaal CUPS 2.4.x met PPD support,
-en `scripts/print-direct.sh` is de CUPS-loze fallback. De wrapper is lokaal
-getest: stdin → byte-identieke HBPL stream als de directe filter.
+Not needed now: 22.04/24.04/26.04 all run CUPS 2.4.x with PPD support,
+and `scripts/print-direct.sh` is the CUPS-free fallback. The wrapper is tested
+locally: stdin → byte-identical HBPL stream as the direct filter.
 
-## 9. Bekende beperkingen / vervolgwerk
+## 9. Known limitations / follow-up work
 
-- **Kleurcalibratie (FXM_CC + .dlut) — GEREPLICEERD, byte-exact geverifieerd**
-  (integratie in de driver: §6; verificatie: §7). Het gekraakte algoritme
-  (Ghidra decompilatie `re/FXM_CC-decompiled.c` + parameters uit live gdb
-  dumps van de 32-bit binary):
+- **Color calibration (FXM_CC + .dlut) — REPLICATED, byte-exact verified**
+  (integration in the driver: §6; verification: §7). The cracked algorithm
+  (Ghidra decompilation `re/FXM_CC-decompiled.c` + parameters from live gdb
+  dumps of the 32-bit binary):
 
-  **Pipeline** (uit `main`): `color: out = 3Dlut(CST(in))`,
-  `gray: out = NTSC(CST(in))` — CST wordt eerst toegepast, dáárna de 3D LUT.
+  **Pipeline** (from `main`): `color: out = 3Dlut(CST(in))`,
+  `gray: out = NTSC(CST(in))` — CST is applied first, THEN the 3D LUT.
 
-  **CST** (per pixel, 8-bit in → 8-bit uit; lossy 8→16→12→8):
+  **CST** (per pixel, 8-bit in → 8-bit out; lossy 8→16→12→8):
   1. gamma-2.2 TRC: `CST_TRC[i] = round(65535·(i/255)^2.2)` (8→16 bit)
   2. 3×3 matrix signed Q16: `out = ((M[i]>>2)·v + …) >> 18` == `m·v/16`
-     (16→12 bit; signed arithmetic shifts — `sar`/`imul` in de assembly).
+     (16→12 bit; signed arithmetic shifts — `sar`/`imul` in the assembly).
      `CST_M = {65543, 0, 5, -3, 65541, 3, -2, -1, 65535}` — sRGB primaries
-     met gamma22TRC (≈ identity, kleine off-diagonals)
+     with gamma22TRC (≈ identity, small off-diagonals)
   3. clamp `[0, 0xfff]`
   4. inverse TRC `CST_ITRC` (4096 entries, 12→8 bit)
-  Tabellen: `native/cst_tables.h` (gegenereerd, in git).
+  Tables: `native/cst_tables.h` (generated, in git).
 
   **3D LUT** (tetrahedral, 17³ nodes):
-  - node index `(c2>>4)·289 + (c1>>4)·17 + (c0>>4)`; fracties `f = c&0xf`
+  - node index `(c2>>4)·289 + (c1>>4)·17 + (c0>>4)`; fractions `f = c&0xf`
     (deltas 289/17/1), descending sort
-  - weights `w0=16-f[0]`, `w1=f[0]-f[1]`, `w2=f[1]-f[2]`, `w3=f[2]` (sommen 16)
+  - weights `w0=16-f[0]`, `w1=f[0]-f[1]`, `w2=f[1]-f[2]`, `w3=f[2]` (sum 16)
   - nodes `base`, `base+d[0]`, `base+d[0]+d[1]`, `base+307` (c111)
-  - resultaat `(Σ w·node) >> 4` (≤ 255; clamp overbodig)
+  - result `(Σ w·node) >> 4` (≤ 255; clamp unnecessary)
   - white shortcut: `(c0 & c1 & c2) == 0xff` → `(255,255,255)`
 
-  **.dlut formaat** (`driver/Phaser_6125N.dlut`, 265944 bytes, big-endian):
+  **.dlut format** (`driver/Phaser_6125N.dlut`, 265944 bytes, big-endian):
   - header: magic `DLUT`, u32be count=13, 13× u32be block-offsets,
     u32be metacount=79, 79× u32be `meta[]`
-  - `meta[FXDLUT]` = 1-based blocknummer; FXDLUT komt uit de PPD
+  - `meta[FXDLUT]` = 1-based block number; FXDLUT comes from the PPD
     (`FXDocumentType` setpagedevice: Normal 24, Photo 22, Presentation 26,
     Web 23, POP 32)
-  - block data op `offsets[block-1]+8` (8-byte `dlt4`+size header), 20420
-    bytes = 768 bytes 1D curves (ongebruikt in het pixel path) + 17³×4 LUT
-  - block-selectie uit meta[]: Normal 24→block 3, Photo 22→block 1,
+  - block data at `offsets[block-1]+8` (8-byte `dlt4`+size header), 20420
+    bytes = 768 bytes 1D curves (unused in the pixel path) + 17³×4 LUT
+  - block selection from meta[]: Normal 24→block 3, Photo 22→block 1,
     Presentation 26→block 5, Web 23→block 2, POP 32→block 11
-  - **file vs memory**: FXM_CC bewaart elke 4-byte node reversed in het
-    geheugen — dump node = `[out2, out1, out0, pad]`, file node =
-    `[pad, out0, out1, out2]` (bewezen: block 3 == `re/build/dlut-param.bin`
-    met elke node byte-reversed). De driver leest het file formaat.
+  - **file vs memory**: FXM_CC keeps each 4-byte node reversed in memory —
+    dump node = `[out2, out1, out0, pad]`, file node =
+    `[pad, out0, out1, out2]` (proven: block 3 == `re/build/dlut-param.bin`
+    with each node byte-reversed). The driver reads the file format.
 
-  **Gray**: `g = (c0·77 + c1·151 + c2·28) >> 8` over de CST output
-  (NTSC 0.30/0.59/0.11; geverifieerd: `gray-test.fxr` → `4c 96 1b 81`).
+  **Gray**: `g = (c0·77 + c1·151 + c2·28) >> 8` over the CST output
+  (NTSC 0.30/0.59/0.11; verified: `gray-test.fxr` → `4c 96 1b 81`).
 
-  **Ground truth**: 32-bit FXM_CC via de i386 sysroot (`re/run-stage.sh`);
-  captures `synth.fxr→synth-cc.fxr` (alle 256^3 kleuren),
-  `s3-pr.fxr→s4-cc.fxr` (echte pagina, 500.990 px), `gray-test.fxr→gray-out.fxr`.
-  Model (`re/verify_model.c`) en oracle (`re/calib.c`) zijn hier byte-exact
-  tegen; de driver is byte-exact tegen de oracle (`re/verify-native.py`).
+  **Ground truth**: 32-bit FXM_CC via the i386 sysroot (`re/run-stage.sh`);
+  captures `synth.fxr→synth-cc.fxr` (all 256^3 colors),
+  `s3-pr.fxr→s4-cc.fxr` (real page, 500,990 px), `gray-test.fxr→gray-out.fxr`.
+  Model (`re/verify_model.c`) and oracle (`re/calib.c`) are byte-exact
+  against these; the driver is byte-exact against the oracle (`re/verify-native.py`).
 
-  **Env**: `FOO2SQ_CALIBRATE=0` (calibratie uit), `FOO2SQ_DLUT=<pad>` (override);
-  default `.dlut` = `/usr/share/phaser6125/Phaser_6125N.dlut`. Zonder
-  bruikbaar .dlut: CST-only (zoals FXM_CC zelf).
-- FXM_SBP / FXM_PR details (gray / turnpage) niet gerepliceerd.
-- Officieuze chain is near-lossless; de onze is exact lossless.
-- CUPS draait filters als user `lp`; `/usr/lib/cups/filter` moet root:root 0755.
+  **Env**: `FOO2SQ_CALIBRATE=0` (calibration off), `FOO2SQ_DLUT=<path>` (override);
+  default `.dlut` = `/usr/share/phaser6125/Phaser_6125N.dlut`. Without a
+  usable .dlut: CST-only (like FXM_CC itself).
+- FXM_SBP / FXM_PR details (gray / turnpage) not replicated.
+- The official chain is near-lossless; ours is exactly lossless.
+- CUPS runs filters as user `lp`; `/usr/lib/cups/filter` must be root:root 0755.
 
-## 10. USB (vanuit Windows of Linux)
+## 10. USB (from Windows or Linux)
 
-De Phaser 6125N heeft naast Ethernet een **USB 2.0 device-poort** (type B).
-De Windows driver INF (`analysis/windriver/…/fxhl2zi.inf`) matcht het device
-als `USBPRINT\FUJI_XEROXDocuPrint_13C9` — een **standaard USB Printing Class**
-device (Windows `usbprint.sys`), géén vendor-specifieke USB stack. Ook
-`LPTENUM\FUJI_XEROXDocuPrint_13C9` (parallelle poort) wordt ondersteund.
-Het PJL/HBPL-protocol werkt over USB identiek aan raw JetDirect (9100).
-(De INF is van de C525A — het zustermodel; de 6125N gebruikt dezelfde
-engine, maar de exacte USB-string kan `XEROX Phaser 6125…` zijn.)
+The Phaser 6125N has a **USB 2.0 device port** (type B) next to Ethernet.
+The Windows driver INF (`analysis/windriver/…/fxhl2zi.inf`) matches the device
+as `USBPRINT\\FUJI_XEROXDocuPrint_13C9` — a **standard USB Printing Class**
+device (Windows `usbprint.sys`), no vendor-specific USB stack. Also
+`LPTENUM\\FUJI_XEROXDocuPrint_13C9` (parallel port) is supported.
+The PJL/HBPL protocol works over USB identically to raw JetDirect (9100).
+(The INF is from the C525A — the sister model; the 6125N uses the same
+engine, but the exact USB string may be `XEROX Phaser 6125…`.)
 
-Drie routes, van snel/simpel naar "eigen driver end-to-end":
+Three routes, from quick/simple to "own driver end-to-end":
 
-### B. Raw USB vanuit Windows (aanbevolen — geen driver nodig)
+### B. Raw USB from Windows (recommended — no driver needed)
 
-Windows hangt automatisch *USB Printing Support* (usbprint.sys) aan het
-device; de poort verschijnt als `USB001` (of USB002…). Onze filter genereert
-een complete PJL/HBPL stream — die stuur je raw naar de poort:
+Windows automatically attaches *USB Printing Support* (usbprint.sys) to the
+device; the port shows up as `USB001` (or USB002…). Our filter generates
+a complete PJL/HBPL stream — send it raw to the port:
 
-1. USB A-B kabel printer → Windows PC; in Device Manager verschijnt
-   *USB Printing Support* onder *Universal Serial Bus devices*.
-2. Genereer de stream in WSL (Linux):
+1. USB A-B cable printer → Windows PC; in Device Manager *USB Printing Support*
+   appears under *Universal Serial Bus devices*.
+2. Generate the stream in WSL (Linux):
    ```
    cd /home/rick/src/phaser6125
    PPD="$PWD/driver/Phaser_6125N-native.ppd" ./native/foo2sq21hbpl \
        1 rick test 1 "PageSize=A4 FXOutputMode=600x600 FXColorMode=Color" \
        tests/colorpage.pdf > /tmp/colorpage.hbpl
    ```
-3. Kopieer naar Windows (bv. via `\\wsl$\Ubuntu\home\rick\…` → `C:\temp\`) en print:
+3. Copy to Windows (e.g. via `\\\\wsl$\\Ubuntu\\home\\rick\\…` → `C:\temp\`) and print:
    ```
-   copy /b C:\temp\colorpage.hbpl \\.\USB001
+   copy /b C:\temp\colorpage.hbpl \\\\.\USB001
    ```
 
    **Update (2026-11-02, verified on WINNIE):** `\\.\USB00x` is **not** a
    DOS device file on current Windows 11 — `copy /b` and `CreateFile` both
    return err 2 (FILE_NOT_FOUND), and `dir \\.\` shows no USB entries.
    USB print ports are only reachable via the print spooler
-   (OpenPrinter/WritePrinter), not as device files. Route B does not work
-   on Windows 11 24H2+; use route A (vendor queue) or route C
-   (usbipd+CUPS) for USB, or the network (socket://) via our PAPPL gateway
-   (section 12, fully verified).
+   (OpenPrinter/WritePrinter), not as device files. So on Windows 11 24H2+
+   use a **raw printer share** instead (see below) or route C (usbipd+CUPS)
+   for USB, or the network (socket://) via our PAPPL gateway (section 12,
+   fully verified).
 
-### C. WSL2 + usbipd + CUPS usb:// (onze native driver, end-to-end)
+   **Raw share route (works on Win11 24H2, verified):** create a raw printer
+   queue on the USB port and share it — `copy /b` to the share goes through
+   the spooler straight to the device:
+   ```powershell
+   Add-Printer -Name "Phaser Raw" -DriverName "Generic / Text Only" -PortName USB001
+   Set-Printer -Name "Phaser Raw" -Shared $True -ShareName "PhaserRaw"
+   ```
+   ```bat
+   copy /b C:\temp\colorpage.hbpl \\%COMPUTERNAME%\PhaserRaw
+   ```
+   The same channel is used by our gateway's `usbprint://HOST/PhaserRaw`
+   device URI (OpenPrinter + StartDocPrinter(RAW) + WritePrinter — see §12).
 
-`usbipd` (gratis, `winget install usbipd`) richt een USB-device door naar
-WSL2; CUPS' usb backend (libusb) print dan met onze eigen driver:
+### C. WSL2 + usbipd + CUPS usb:// (our native driver, end-to-end)
+
+`usbipd` (free, `winget install usbipd`) forwards a USB device to WSL2; CUPS'
+usb backend (libusb) then prints with our own driver:
 
 ```
 # Windows (admin PowerShell)
 usbipd wsl list
 usbipd wsl attach --busid <busid>
 # in WSL
-lpinfo -v | grep usb          # geeft de usb:// URI
+lpinfo -v | grep usb          # gives the usb:// URI
 sudo lpadmin -p Phaser6125N -v usb://FUJI_XEROX/DocuPrint_13C9
 ```
 
-### A. Vendor Windows driver via USB (minst interessant voor dit project)
+### A. Vendor Windows driver via USB (least interesting for this project)
 
-De DPC525A DISM export (of de officiele Xerox 6125N Windows driver) kan via
-USB installeren (LanguageMonitor "SimpleMonitor", `fxhl2zi.inf`) — maar dat
-is "gewoon printen" met een driver uit 2012 (DriverVer 2.5.34.0), los van
-onze reverse-engineering.
+The DPC525A DISM export (or the official Xerox 6125N Windows driver) can install
+via USB (LanguageMonitor "SimpleMonitor", `fxhl2zi.inf`) — but that is "just
+printing" with a 2012 driver (DriverVer 2.5.34.0), independent of our
+reverse-engineering.
 
 ### Native Linux
 
-`scripts/print-direct-usb.sh <bestand.pdf|ps> [\"options\"]` — filter →
+`scripts/print-direct-usb.sh <file.pdf|ps> [\"options\"]` — filter →
 `/dev/usb/lp0` (usblp kernel module; env `USB_DEVICE` override). In WSL2
-bestaat `/dev/usb/lp0` niet (usbipd presenteert het device via libusb) —
-daar is route C de manier.
+`/dev/usb/lp0` does not exist (usbipd exposes the device via libusb) —
+route C is the way there.
 
-**Opgelet**: de printer is gedeeld — elke testpagina kost een pagina. Eerst
-het device checken (Device Manager / `lpinfo -v`), printen pas als het
-device confirmed is. Controleer eventueel in CentreWare IS
-(http://192.168.178.10, read-only) of de USB-poort ingeschakeld is.
+**Careful**: the printer is shared — every test page costs a page. Check the
+device first (Device Manager / `lpinfo -v`), only print when the device is
+confirmed. Optionally check in CentreWare IS (http://192.168.178.10, read-only)
+whether the USB port is enabled.
 
 ## 11. Windows 11 driverless via IPP (context: V3/V4 driver deprecation)
 
-Microsoft bouwt legacy V3/V4 printerdrivers af (end-of-servicing plan,
+Microsoft is phasing out legacy V3/V4 printer drivers (end-of-servicing plan,
 learn.microsoft.com "End of servicing plan for third-party printer
-drivers"): sinds sept 2023 geen nieuwe V3/V4, sinds 15 jan 2026 geen
-nieuwe via Windows Update (Win11+/Server 2025+), vanaf 1 juli 2026
-voorrang voor de IPP inbox class driver, na juli 2027 alleen nog
-securityfixes. Bestaande drivers blijven werken, maar printers zonder
-IPP/Mopria vallen terug op handmatig geinstalleerde drivers.
+drivers"): no new V3/V4 since Sept 2023, no new ones via Windows Update since
+15 Jan 2026 (Win11+/Server 2025+), from 1 July 2026 preference for the IPP
+inbox class driver, after July 2027 only security fixes. Existing drivers keep
+working, but printers without IPP/Mopria fall back to manually installed drivers.
 
-De Phaser 6125N spreekt **geen IPP/Mopria** (bewezen: CentreWare IS HTTP,
-SNMPv1-only, raw 9100 HBPL) — de vendor driver (route A, §10) is op
-Windows 11 24H2+ op termijn een aflopende zaak.
+The Phaser 6125N speaks **no IPP/Mopria** (proven: CentreWare IS HTTP,
+SNMPv1-only, raw 9100 HBPL) — the vendor driver (route A, §10) is a dead end on
+Windows 11 24H2+ in the long run.
 
-**Onze setup is al de userspace-vertaling** die het nieuwe model verlangt:
-`foo2sq21hbpl` rendert PDF → HBPL in userspace (ghostscript + onze chain),
-en de WSL CUPS is een IPP-printserver. Wat ontbrak is alleen de
-Windows→WSL IPP-verbinding (driverless, inbox class driver):
+**Our setup is already the userspace translation** the new model wants:
+`foo2sq21hbpl` renders PDF → HBPL in userspace (ghostscript + our chain),
+and the WSL CUPS is an IPP print server. What was missing is only the
+Windows→WSL IPP connection (driverless, inbox class driver):
 
-1. `sudo bash scripts/setup-wsl-ipp.sh` — zet `Listen *:631` in cupsd.conf
-   (backup `.pre-ipp`), herstart CUPS, test de IPP endpoint via het WSL IP
-   met `ipptool get-printer-attributes`
-2. Windows: Instellingen → Printers & scanners → *Apparaat toevoegen* →
-   *De printer die ik wil staat er niet bij* → *Een gedeelde printer op
-   naam selecteren* → `http://<wsl-ip>:631/printers/Phaser6125N` — Windows
-   detecteert IPP en gebruikt de **inbox class driver** (geen V3 driver)
-3. Print vanuit Windows → CUPS (WSL) → `foo2sq21hbpl` → HBPL → printer
-   (socket 9100, of USB via §10 route C)
+1. `sudo bash scripts/setup-wsl-ipp.sh` — sets `Listen *:631` in cupsd.conf
+   (backup `.pre-ipp`), restarts CUPS, tests the IPP endpoint via the WSL IP
+   with `ipptool get-printer-attributes`
+2. Windows: Settings → Printers & scanners → *Add device* →
+   *The printer that I want isn't listed* → *Select a shared printer by name* →
+   `http://<wsl-ip>:631/printers/Phaser6125N` — Windows detects IPP and uses the
+   **inbox class driver** (no V3 driver)
+3. Print from Windows → CUPS (WSL) → `foo2sq21hbpl` → HBPL → printer
+   (socket 9100, or USB via §10 route C)
 
-Firewall: Windows Firewall blokkeert inkomend naar WSL soms — regel
-toevoegen voor poort 631, of WSL2 mirrored networking
-(`[wsl2] networkingMode=mirrored` in `%UserProfile%\.wslconfig`, daarna
-`wsl --shutdown`) — WSL krijgt dan hetzelfde IP als Windows.
+Firewall: Windows Firewall sometimes blocks inbound to WSL — add a rule for
+port 631, or WSL2 mirrored networking (`[wsl2] networkingMode=mirrored` in
+`%UserProfile%\\.wslconfig`, then `wsl --shutdown`) — WSL then gets the same IP
+as Windows.
 
-**USB als fallback** (§10): route B (raw `copy /b … \\.\USB001`) staat
-helemaal buiten de print stack — immuun voor deprecation. Route C
-(usbipd + CUPS `usb://`) is driverless maar via CUPS.
+**USB as fallback** (§10): the raw-share route (`copy /b … \\HOST\\PhaserRaw`)
+is entirely outside the print stack — immune to deprecation. Route C
+(usbipd + CUPS `usb://`) is driverless but via CUPS.
 
-Voor meerdere printers / een appliance: PAPPL (github.com/istopwg/pappl)
-of een Raspberry Pi + CUPS — onze repo is al compatibel getest op
+For multiple printers / an appliance: PAPPL (github.com/istopwg/pappl)
+or a Raspberry Pi + CUPS — our repo is already compat-tested on
 22.04/24.04/26.04 (`scripts/test-compat-distro.sh`).
 
-## 13. Vendor v3-driver verwijderen (Windows 11 24H2)
-
-Volledige procedure + debugging-handreiking (zes schuilplaatsen incl. de
-PCC-cab die de spooler herimporteert, pnputil-semantiek, setupapi.dev.log als
-gouden bron): zie **[docs/remove-vendor-driver-windows.md](docs/remove-vendor-driver-windows.md)**.
-Casus: Xerox Phaser 6125N (`xrhwszi.inf` → `oem140.inf`), incl. raw-USB
-printen na cleanup via gedeelde queue `\\HOST\PhaserRaw` (zie ook §12
-usbprint: scheme).
 
 ## 12. PAPPL printer application (driverless IPP, Windows-proof)
 
@@ -474,7 +477,7 @@ solution against the V3/V4 driver deprecation (§11): no vendor driver needed.
 Client (Windows/macOS/Linux) → IPP (PDF/PS/JPEG/PNG)
   → PAPPL server (this app, TCP 8631 or Unix socket)
   → MIME filter (hbpl_filter_cb: gs → ppmraw → hbpl_core → HBPL)
-  → device (socket://192.168.178.10:9100, usb:, file:)
+  → device (socket://192.168.178.10:9100, usbprint://HOST/PhaserRaw, file:)
 ```
 
 The MIME filter follows the OpenPrinting "non-raster printer" pattern
@@ -488,8 +491,7 @@ The MIME filter follows the OpenPrinting "non-raster printer" pattern
 bash scripts/build-pappl-app.sh
 
 LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl server -o server-port=8631 &
-LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
-    -m xerox_phaser_6125n -v socket://192.168.178.10:9100
+LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser     -m xerox_phaser_6125n -v socket://192.168.178.10:9100
 ```
 
 ### PAPPL 1.4.x gotchas (learned the hard way)
@@ -511,6 +513,8 @@ LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
 - `add` CLI: `-d NAME` is required (positional arg = filename).
 - `file:` device must exist before `add` (`touch` first).
 - Server CLI: no `-l`/`-d` short options for log/spool — use `-o log-file=...` etc.
+- Set the system hostname explicitly (`papplSystemSetHostName` with `<host>.local`)
+  so the mDNS `adminurl` is not `localhost.local`.
 
 ### Verification (all PASS)
 
@@ -520,125 +524,87 @@ LD_LIBRARY_PATH=/usr/local/lib pappl/phaser6125-pappl add -d phaser \
 - `ipptool Print-Job` (PDF, no explicit resolution, like Windows) → job accepted,
   output **byte-identical** to the CUPS filter reference (after DATE/TIME/DNAME
   normalisation), `@PJL SET RESOLUTION=600`
-- `pappl submit -d phaser -o printer-resolution=600x600dpi tests/colorpage.pdf`
-  → byte-identical as well
+- Real-hardware Windows 11 test: Create-Printer via IPP → job-state=completed →
+  bytes to the physical printer (network and USB)
 
-### USB via usbprint: scheme (2026-11-02, verified on WINNIE)
+### USB via usbprint: scheme (verified on WINNIE 2026-11-02)
 
-Added a `usbprint:` device scheme (papplDeviceAddScheme; CreateFile/WriteFile
-direct — PAPPL's file: runs stat() which fails on Windows device files).
-Device URI: `usbprint://./USB001` writes raw HBPL to the USB00x device file
-(same mechanism as `copy /b out.bin` to that port).
+`usbprint:` device scheme registered via `papplDeviceAddScheme`:
+- `usbprint://./USB001` → CreateFile/WriteFile on the device file (legacy; err 2 on Win11 24H2+)
+- `usbprint://HOST/PhaserRaw` → OpenPrinter + StartDocPrinter(RAW) + WritePrinter
+  (spooler channel, same as `copy /b file \\HOST\PhaserRaw`) — **verified working**:
+  263,242 bytes HBPL written to the USB printer, job completed.
+`run-portable.bat` auto-creates the `PhaserRaw` share (Generic/Text Only on USB001).
+`PRINTER_DEV` selects socket:// (network) or usbprint:// (USB).
 
-**Caveat (verified):** the USB00x device file only exists when Windows
-recognizes the device as a USB printer (usbprint.sys loaded) AND a queue is
-bound to that port. With the vendor driver bound to the PnP port
-(Port_#0011.Hub_#0001), no USB00x device file exists (CreateFile err 2).
-USB route: remove vendor USB queue → Windows detects "USB Printing
-Support" → USB00x appears → usbprint://./USB00x works. Network (socket://)
-remains the primary, always-working route.
+### mDNS/DNS-SD auto-discovery
 
-**Update (verified):** even with usbprint.sys bound (Printer class
-USBPRINT\XEROXPHASER_6125N...USB001) and a queue on USB001,
-`CreateFile("\\\\.\\USB001")` returns err 2 (FILE_NOT_FOUND) on this
-Windows build — the DOS device name for usbprint ports is not reliably
-openable. So the usbprint: scheme is built in but effectively unused;
-use socket:// (network) or the Windows queue itself for USB.
+- `native/mdns_mini.c` (~400 lines, RFC 6762) advertises `_ipp._tcp.local` +
+  `_universal._sub._ipp._tcp.local` via multicast 224.0.0.251:5353 with a full
+  IPP Everywhere TXT record set (rp, ty, product, pdl, URF=DM3, UUID=printer-uuid,
+  mopria-certified, Color, Duplex, adminurl, …). Verified via unicast PTR queries.
+- On Windows 10/11 UDP 5353 is always held by the OS mDNS responder or Bonjour —
+  mdns_mini.c is a fallback only. PAPPL's built-in DNS-SD path (LoadLibrary
+  dnssd.dll) advertises `_ipp._tcp` with full TXT records when Bonjour is present.
+  **CONFIRMED: printer appears in Windows 11 "Add device" auto-discovery**
+  (user-verified on WINNIE, 2026-11-02). tshark capture: `PTR Xerox Printer 6125N._ipp._tcp.local.`,
+  `TXT rp=ipp/print/Xerox_Printer_6125N`, `SRV WINNIE.local.:8631`.
+- **Windows 11 caveat**: Settings → "Add device" also sends WSD probes
+  (239.255.255.250:3702, answered by other LAN devices, not by us — we are IPP-only).
+  If the queue gets a WSD port: disable Windows auto-setup, delete queue + WSD
+  ports, re-add via the manual IPP URL (see dist-windows/README.txt).
 
 ### WSD research (2026-11-02, repos in /home/rick/src/wsd-research)
 
 Cloned b1tninja/fakeprint (Rust fake WSD+IPP printer) and roncapat/WSD-python
-(PyWSD, client-only lib). Findings:
-- fakeprint WSD module alone: **21k LOC Rust, 60 SOAP operations** (discovery
-  Probe/ProbeMatch/Hello, metadata transfer, full WSD Print incl. MTOM jobs,
-  eventing). Total project 66k LOC. WSD-python: 3k LOC but **client-side**
-  only (scan/get metadata) — not usable as a responder.
-- For us, WSD would need in C: discovery responder (UDP 3702 Probe/ProbeMatch
-  + Hello) ~400-600 lines, minimal SOAP/XML ~300-500, metadata templates
-  (ThisDevice+PrintService with SerialNumber) ~200, HTTP metadata endpoint on
-  the existing PAPPL HTTP server ~100 → **~1-1.5k LOC for discovery+metadata
-  only** (fixes Serial Number display + removes WSD-hang). Full WSD Print
-  (CreatePrinter/PrintJob/MTOM → HBPL) adds ~1.5-2k LOC → 2-4 weeks.
-- Recommendation: keep IPP-only + manual IPP-URL add (works, verified).
-  WSD metadata-only is possible later if Serial Number display matters;
-  do NOT advertise WSD without print ops (queue would pick WSD and fail).
+(PyWSD, client-only lib). fakeprint's WSD module alone: **21k LOC Rust, 60 SOAP
+operations** (discovery, metadata transfer, full WSD Print incl. MTOM).
+PyWSD: 3k LOC but client-side only. For us in C: discovery+metadata only
+~1-1.5k LOC (would fix the Serial Number display); full WSD Print +1.5-2k LOC
+(2-4 weeks). Recommendation: stay IPP-only + manual IPP-URL add; do NOT
+advertise WSD without print ops (the queue would pick WSD and fail).
+
+### SNMP→IPP status bridge — DONE
+
+`native/snmp_poll.c` (own minimal SNMPv1 BER client, no net-snmp dep) polls the
+Printer-MIB over UDP/161 (community "public"): 1 GET sysDescr (online check) +
+1 GET hrDeviceStatus + short GETNEXT count walk + chunked multi-OID GETs
+(batch 10 supplies / 4 alerts — the printer returns tooBig on larger batches).
+Maps prtMarkerSuppliesTable → IPP marker-levels/names/types/colors and
+prtAlertTable → printer-state-reasons (text-based matching: "paper" without
+"able to print" → media-empty + queue paused via papplPrinterPause;
+"Toner" → toner-low, etc.). Verified via ipptool:
+`marker-levels=-1,-1,-1,-1,80,100` (CMYK unknown for non-Xerox toners,
+Imaging Unit 80%, Fuser 100%), `printer-state=stopped` +
+`reasons=media-empty,toner-low,paused` with the tray open; `idle` when resolved.
 
 ### TODO
 
-- **Windows build — DONE (mingw cross-compile, no VS2022 needed)**:
-  `scripts/build-windows-mingw.sh` downloads the prebuilt MSVC .lib files from
-  NuGet (libpappl1_native 1.4.12, libcups2_native 2.4.20, libressl, libjpeg-turbo,
-  libpng, zlib), compiles with `x86_64-w64-mingw32-gcc` and links against the
-  .lib files (mingw ld handles MSVC COFF). Result: `build-mingw/phaser6125-pappl.exe`
-  (PE32+ x86-64, 640 KB, only 4 DLL deps: KERNEL32, msvcrt, libcups2.dll,
-  libpappl1.dll). Verified under wine64: `--help` shows full PAPPL usage.
-  `start_gs()` _WIN32 path uses CreateProcess + gswin64c.exe (found next to
-  the .exe or on PATH). Packaging: `scripts/package-windows.sh` →
-  `Phaser6125N-PAPPL-win64.zip` (~25 MB, exe + 11 DLLs + bundled
-  Ghostscript 10.08 in `gs/` + install-phaser6125.bat + README.txt).
-  Ghostscript (AGPL) auto-downloaded from ArtifexSoftware GitHub releases
-  and extracted with 7z — no separate install needed.
-  Alternative: `vcnet/` MSVC project for those with VS2022.
-- **mDNS/DNS-SD auto-discovery — eigen implementatie, geen Bonjour nodig**:
-  `native/mdns_mini.c` (~400 lines, RFC 6762) adverteert `_ipp._tcp.local` +
-  `_universal._tcp.local` via multicast 224.0.0.251:5353. Start in
-  `system_cb` via `mdns_start("Phaser6125N", port, "ipp/print/Phaser6125")`.
-  Verified: unicast PTR query → correct 519-byte response (ANCOUNT=4:
-  PTR+SRV+TXT+A); multicast announcements confirmed via tcpdump.
-  (WSL2 ziet eigen multicast niet terug door NAT — op echt Windows/Linux
-  werkt discovery gewoon.) PAPPL's eigen Avahi/Bonjour path werkt ook
-  als dnssd.dll aanwezig is, maar Apple's Bonjour SDK SLA staat
-  redistributie van dnssd.dll in eigen packages niet toe — vandaar
-  mdns_mini.c als open alternatief.
-  **Verified on real Windows 11 (WINNIE)**: multicast PTR query from the
-  network gets responses from the Windows host with
-  `Phaser6125N._ipp._tcp.local` (ANCOUNT=4). The service IS discoverable
-  via mDNS — visible to macOS/iOS/Android/Linux clients.
-  **Windows discovery works via PAPPL's built-in DNS-SD**: on Windows 10/11
-  UDP 5353 is always occupied by the OS mDNS responder (svchost/dnscache)
-  or Bonjour (mDNSResponder.exe) — our mdns_mini.c cannot bind there (by
-  design it's a fallback for systems without a DNS-SD stack). PAPPL's own
-  path loads dnssd.dll via LoadLibrary (present when Bonjour installed,
-  which is common) and registers `_ipp._tcp` with full IPP Everywhere TXT
-  records automatically. Verified: after Create-Printer, multicast PTR
-  query from the LAN interface (192.168.178.46) returns Phaser6125.
-  **CONFIRMED: printer appears in Windows 11 "Add device" auto-discovery**
-  (user-verified on WINNIE, 2026-11-02).
-  **tshark capture during Windows "Add device" (Ethernet 2, 45s)**: Windows
-  host sends WSD Probe multicast to 239.255.255.250:3702 (25x — answered by
-  other LAN devices 192.168.178.3/.11/.30, NOT by our gateway — we are
-  IPP-only, no WSD responder) AND mDNS traffic on 5353 where our service
-  is visible: `PTR Xerox Printer 6125N._ipp._tcp.local.`,
-  `TXT rp=ipp/print/Xerox_Printer_6125N`, `SRV WINNIE.local.:8631`.
-  So mDNS discovery works; the WSD port Windows assigns to the queue is
-  cosmetic — print via the IPP URL (see README troubleshooting).
-  mdns_mini.c fix: join multicast group on INADDR_ANY (getaddrinfo may
-  pick the wrong interface IP on multi-homed Windows hosts).
-  **Windows 11 caveat**: Settings → "Add device" primarily uses
-  WS-Discovery (WSD), not mDNS. Windows users should use
-  "The printer that I want isn't listed" → enter
-  `http://<host-ip>:8631/ipp/print/Phaser6125` — the inbox IPP class
-  driver picks it up from there. (WS-Discovery/SOAP responder is a
-  possible future addition but much larger scope.)
-- **Portable mode (geen admin nodig)**: poort 8631 is unprivileged (>1024),
-  spool gaat naar `%LocalAppData%`. `dist-windows/run-portable.bat` draait
-  direct uit de uitgepakte zip — geen installatie naar Program Files.
-- **Linux packaging (optional)**: `pappl-retrofit` (legacy-printer-app.c)
-  can wrap our PPD + CUPS filter out-of-the-box for Snap packaging
-  (Linux only — libcupsfilters/libppd have no Windows build).
-- **SNMP→IPP status bridge — DONE**: `native/snmp_poll.c` (own minimal
-  SNMPv1 BER client, no net-snmp dep) polls the Printer-MIB over UDP/161
-  (community "public"). Strategy: 1 GET sysDescr (online check) + 1 GET
-  hrDeviceStatus + short GETNEXT count walk + chunked multi-OID GETs
-  (batch=4 for alerts with long texts, 10 for supplies — printer returns
-  tooBig on larger batches). Maps prtMarkerSuppliesTable → IPP
-  marker-levels/names/types/colors and prtAlertTable → printer-state-reasons
-  (text-based matching: "paper"→media-empty, "Toner"→toner-low, etc.).
-  Verified via ipptool: marker-levels=-1,-1,-1,-1,80,100 (CMYK unknown for
-  non-Xerox toners, Imaging Unit 80%, Fuser 100%), printer-state-reasons
-  = media-empty,toner-low with tray open. PAPPL status_cb wired in
-  driver_cb (has_supplies=true).
-- **Real-hardware Windows test**: the .exe is verified under wine64
-  (--help renders, PE32+ valid) and the HBPL output is byte-identical
-  to the CUPS filter, but a full end-to-end print on real Windows 11
-  with the physical printer is still pending (needs a Windows host).
+- **Windows build — DONE** (mingw cross-compile + NuGet prebuilt .lib files,
+  no VS2022 needed): `scripts/build-windows-mingw.sh` →
+  `build-mingw/phaser6125-pappl.exe` (PE32+ x86-64, ~665 KB, DLL deps:
+  KERNEL32, msvcrt, winspool, libcups2.dll, libpappl1.dll). Verified on real
+  Windows 11 (native process, TCP 8631, Create-Printer, Print-Job completed)
+  and under wine64. `start_gs()` _WIN32 path: CreateProcess + gswin64c.exe.
+  Packaging: `scripts/package-windows.sh` → `Phaser6125N-PAPPL-win64.zip`
+  (~25 MB: exe + DLLs + bundled Ghostscript 10.08 in `gs/` + .bat entrypoints
+  + README.txt). Alternative: `vcnet/` MSVC project for those with VS2022.
+- **Portable mode (no admin needed)**: port 8631 is unprivileged (>1024), spool
+  in `%LocalAppData%`. `dist-windows/run-portable.bat` runs straight from the
+  unzipped zip.
+- **IPP printer-device-id with MFG/MDL/SN**: Windows Device Information shows
+  Manufacturer/Model from `printer-device-id`; Serial Number only comes from WSD
+  metadata (shows "Unavailable" for pure-IPP printers — known Windows limitation).
+  SN=LAL035151 (read from the printer via SNMP prtGeneralSerialNumber) is in the
+  device-id for clients that parse it.
+- **Linux packaging (optional)**: `pappl-retrofit` (legacy-printer-app.c) can
+  wrap our PPD + CUPS filter out-of-the-box for Snap packaging (Linux only).
+
+## 13. Removing the vendor v3 driver (Windows 11 24H2)
+
+Full procedure + debugging guide (six hiding places incl. the PCC cab that the
+spooler re-imports, pnputil semantics, setupapi.dev.log as the golden source):
+see **[docs/remove-vendor-driver-windows.md](docs/remove-vendor-driver-windows.md)**.
+Case study: Xerox Phaser 6125N (`xrhwszi.inf` → `oem140.inf`), incl. raw-USB
+printing after cleanup via shared queue `\\\\HOST\\PhaserRaw` (see also §12
+usbprint: scheme).

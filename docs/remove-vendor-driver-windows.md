@@ -1,43 +1,43 @@
-# Vendor v3-printerdriver volledig verwijderen — casus Xerox Phaser 6125N
+# Completely removing a vendor v3 printer driver — case study Xerox Phaser 6125N
 
-*Volledig gedocumenteerde procedure + debugging-handreiking, gebaseerd op een reële verwijderactie op Windows 11 24H2 (november 2026). Reproduceerbaar voor elke v3-printerdriver die blijft terugkomen.*
+*Fully documented procedure + debugging guide, based on a real removal on Windows 11 24H2 (November 2026). Reproducible for any v3 printer driver that keeps coming back.*
 
-## 1. Context en symptomen
+## 1. Context and symptoms
 
 | | |
 |---|---|
-| Apparaat | Xerox Phaser 6125N, USB `VID_0924 & PID_3D61`, serial `LAL035151` |
-| Driver | v3-printerdriver `xrhwszi.inf` (2007, WHQL), geïnstalleerd als `oem140.inf` |
-| Symptoom | Verwijderen faalt met *"One or more devices are presently installed using the specified INF"*; bij elke USB-replug komt de volledige installatie terug (queue, poort, devnodes) |
+| Device | Xerox Phaser 6125N, USB `VID_0924 & PID_3D61`, serial `LAL035151` |
+| Driver | v3-printerdriver `xrhwszi.inf` (2007, WHQL), installed as `oem140.inf` |
+| Symptom | Removal fails with *"One or more devices are presently installed using the specified INF"*; every USB replug brings the full installation back (queue, port, devnodes) |
 
-De kern van het probleem: een v3-printerdriverpakket leeft op **zes** plekken tegelijk, en zolang er één overleeft, herbouwt Windows de rest.
+The core of the problem: a v3 printer driver package lives in **six** places at once, and as long as one survives, Windows rebuilds the rest.
 
-## 2. De zes schuilplaatsen (de "ninja's")
+## 2. The six hiding places (the "ninjas")
 
-| # | Plek | Pad | Rol |
+| # | Place | Path | Role |
 |---|---|---|---|
-| 1 | DriverStore | `C:\Windows\System32\DriverStore\FileRepository\xrhwszi.inf_amd64_<hash>\` | Officiële installatiebron voor PnP |
-| 2 | Published INF | `C:\Windows\INF\oem140.inf` (+ `.PNF`, `.cat`) | Cache-kopie met PublishedName-koppeling |
-| 3 | Spooler-werkbestanden | `C:\Windows\System32\spool\DRIVERS\x64\3\` | DLL's, GPD/CDD/XRS, language monitor |
-| 4 | Kleurprofielen | `C:\Windows\System32\spool\drivers\color\` | ICM-profielen |
-| 5 | **PCC-cab (de hoofdninja)** | `C:\Windows\System32\spool\drivers\x64\PCC\xrhwszi.inf_amd64_<hash>.cab` | Spooler-pakketcache: **herimporteert het pakket in de store bij apparaat-detectie** |
-| 6 | Spooler-staging | `C:\Windows\System32\spool\DRIVERS\x64\{GUID}\` | Tijdelijke pakketkopie tijdens herimport |
+| 1 | DriverStore | `C:\Windows\System32\DriverStore\FileRepository\xrhwszi.inf_amd64_<hash>\` | Official PnP installation source |
+| 2 | Published INF | `C:\Windows\INF\oem140.inf` (+ `.PNF`, `.cat`) | Cache copy with PublishedName mapping |
+| 3 | Spooler working files | `C:\Windows\System32\spool\DRIVERS\x64\3\` | DLLs, GPD/CDD/XRS, language monitor |
+| 4 | Color profiles | `C:\Windows\System32\spool\drivers\color\` | ICM profiles |
+| 5 | **PCC-cab (the main ninja)** | `C:\Windows\System32\spool\drivers\x64\PCC\xrhwszi.inf_amd64_<hash>.cab` | Spooler package cache: **re-imports the package into the store on device detection** |
+| 6 | Spooler staging | `C:\Windows\System32\spool\DRIVERS\x64\{GUID}\` | Temporary package copy during re-import |
 
-Daarnaast twee "uitlopers" die zichzelf herstellen zolang bovenstaande bestaan:
+Plus two "off-shoots" that self-heal as long as the above exist:
 
-- **Poort-registry**: `HKLM\SYSTEM\CurrentControlSet\Control\Print\Monitors\USB Monitor\Ports\USB001` (dynamische USB-poort met device-verwijzing; spooler herbouwt hieruit de devnode)
-- **Devnodes**: `USBPRINT\<naam>\<id>` en `SWD\PRINTENUM{...}` (queue-devnode) — verdwijnen pas als poort én store schoon zijn
+- **Port registry**: `HKLM\SYSTEM\CurrentControlSet\Control\Print\Monitors\USB Monitor\Ports\USB001` (dynamic USB port with device reference; the spooler rebuilds the devnode from this)
+- **Devnodes**: `USBPRINT\<naam>\<id>` en `SWD\PRINTENUM{...}` (queue-devnode) — only disappear once port AND store are clean
 
-En een per-user restant: printer-*connections* naar gedeelde printers (`HKCU:\Printers\Connections`, zichtbaar als `\\WINNIE\<printer>,LocalOnly` in het eventlog) kunnen een driver vasthouden zonder in `Get-Printer` te verschijnen.
+And a per-user leftover: printer *connections* to shared printers (`HKCU:\Printers\Connections`, visible as `\\WINNIE\<printer>,LocalOnly` in the event log) can hold a driver without showing up in `Get-Printer`.
 
-## 3. Verwijderprocedure (definitieve volgorde)
+## 3. Removal procedure (definitive order)
 
-> **Gulden regel: de USB-kabel blijft eruit tot álle controles groen zijn.** Elke replug met een nog-aanwezige INF = volledige herinstallatie.
+> **Golden rule: keep the USB cable unplugged until ALL checks are green.** Every replug with a still-present INF = full reinstallation.
 
-**Stap 0 — Inventarisatie**
+**Step 0 — Inventory**
 
 ```powershell
-pnputil /enum-drivers | Select-String "xerox" -Context 4,6   # Published Name opzoeken
+pnputil /enum-drivers | Select-String "xerox" -Context 4,6   # look up Published Name
 Get-ChildItem C:\Windows\System32\DriverStore\FileRepository -Directory | Where-Object Name -like "<inf>*"
 Get-ChildItem C:\Windows\System32\spool\drivers\x64\PCC
 Get-ChildItem C:\Windows\System32\spool\DRIVERS\x64\3
@@ -45,36 +45,36 @@ Get-Printer | Format-Table Name, DriverName, PortName
 Get-PrinterPort
 ```
 
-**Stap 1 — Queues en poort opruimen**
+**Step 1 — Clean up queues and port**
 
 ```powershell
 Get-Printer | Where-Object { $_.PortName -eq "USB001" -or $_.PortName -like "WSD-*" } | Remove-Printer
 Get-PrinterPort | Where-Object Name -like "WSD-*" | Remove-PrinterPort
-# Poort verwijderen lukt pas via de registry (de spooler claimt dynamische poorten):
+# Port removal only works via the registry (the spooler claims dynamic ports):
 Stop-Service Spooler
 Remove-Item "HKLM:\SYSTEM\CurrentControlSet\Control\Print\Monitors\USB Monitor\Ports\USB001" -Recurse -Force
 Start-Service Spooler
 ```
 
-**Stap 2 — Per-user printer-connections** (gewone, niet-admin sessie)
+**Step 2 — Per-user printer connections** (normal, non-admin session)
 
 ```powershell
 Get-ChildItem "HKCU:\Printers\Connections"
-# indien aanwezig:
+# if present:
 rundll32 printui.dll,PrintUIEntry /dl /n "\\<HOST>\<share>"
 ```
 
-**Stap 3 — Vendor-port- en language-monitors**
+**Step 3 — Vendor port- and language monitors**
 
 ```powershell
 Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Control\Print\Monitors"
-# vendor-entries (bijv. "Language Monitor for Xerox ...") verwijderen met spooler gestopt:
+# remove vendor entries (e.g. "Language Monitor for Xerox ...") with the spooler stopped:
 Stop-Service Spooler
 Remove-Item "HKLM:\SYSTEM\CurrentControlSet\Control\Print\Monitors\<vendormonitor>"
 Start-Service Spooler
 ```
 
-**Stap 4 — ÉÉRSTE: de PCC-cab en staging weg (dit was de missende stap!)**
+**Step 4 — FIRST: remove the PCC cab and staging (this was the missing step!)**
 
 ```powershell
 Stop-Service Spooler
@@ -82,20 +82,20 @@ Remove-Item "C:\Windows\System32\spool\drivers\x64\PCC\<inf>_amd64_<hash>.cab" -
 Remove-Item "C:\Windows\System32\spool\DRIVERS\x64\{GUID-stagingdir}" -Recurse -Force -ErrorAction SilentlyContinue
 ```
 
-**Stap 5 — Daarna pas de driverstore**
+**Step 5 — Only then the driver store**
 
 ```powershell
 pnputil /delete-driver oem###.inf /uninstall
-# Faalt met "in use": eerst achtergebleven devnodes opruimen (nu disconnected):
+# Fails with "in use": first clean up leftover devnodes (now disconnected):
 pnputil /enum-devices /disconnected | Select-String -Context 6 "<vendor>"
-pnputil /remove-device "<instance-id>"      # bijv. USBPRINT\... en SWD\PRINTENUM{...}
-# Daarna herhalen; pas als laatste redmiddel:
+pnputil /remove-device "<instance-id>"      # e.g. USBPRINT\... and SWD\PRINTENUM{...}
+# Then repeat; only as a last resort:
 pnputil /delete-driver oem###.inf /force
 ```
 
-> `pnputil`-semantiek: `/uninstall` = driver van devices loskoppelen; `/force` = pakket verwijderen ondanks gebruik. **Samen worden ze genegeerd** ("/uninstall wint"). Met de PCC-cab weg en kabel eraf is `/uninstall` ineens voldoende.
+> `pnputil` semantics: `/uninstall` = detach driver from devices; `/force` = delete package despite use. **Together they are ignored** ("/uninstall wins"). With the PCC cab gone and the cable unplugged, `/uninstall` suddenly suffices.
 
-**Stap 6 — Restbestanden vegen**
+**Step 6 — Wipe leftover files**
 
 ```powershell
 Remove-Item C:\Windows\INF\oem###.inf, C:\Windows\INF\oem###.PNF, C:\Windows\INF\oem###.cat -Force -ErrorAction SilentlyContinue
@@ -104,82 +104,82 @@ Remove-Item C:\Windows\System32\spool\DRIVERS\x64\3\<vendorprefix>* -Force -Erro
 Remove-Item C:\Windows\System32\spool\drivers\color\<vendorprefix>*.icm -Force -ErrorAction SilentlyContinue
 ```
 
-Blijft de FileRepository-map weigeren: eigendomsrechten overnemen:
+If the FileRepository folder still refuses: take ownership:
 
 ```powershell
 takeown /f "<map>" /r /d y
 icacls "<map>" /grant Administrators:F /t
 ```
 
-**Stap 7 — Reboot (kabel eraf), dan de replug-test**
+**Step 7 — Reboot (cable unplugged), then the replug test**
 
-Na reboot: kabel erin. Verwachte eindtoestand: apparaat verschijnt **driverloos/onbekend** en Windows vraagt eventueel om een INF — met een lege store kan er niets meer herinstalleerd worden.
+After reboot: plug the cable in. Expected end state: the device shows up **driverless/unknown** and Windows may ask for an INF — with an empty store nothing can be reinstalled anymore.
 
-## 4. Verificatiechecklist
+## 4. Verification checklist
 
 ```powershell
-pnputil /enum-drivers | Select-String "xerox"                        # leeg
-pnputil /enum-devices /disconnected | Select-String "xerox"          # leeg
-Get-ChildItem C:\Windows\System32\spool\drivers\x64\PCC              # geen vendor-cab
-Get-ChildItem C:\Windows\System32\spool\DRIVERS\x64\3                # geen vendorbestanden
-Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Control\Print\Monitors"  # geen vendor-monitors
-Get-PrinterPort                                                     # geen vendor-poortbeschrijving
-Get-WinEvent -LogName Microsoft-Windows-PrintService/Admin -MaxEvents 20   # geen nieuwe 318-events
+pnputil /enum-drivers | Select-String "xerox"                        # empty
+pnputil /enum-devices /disconnected | Select-String "xerox"          # empty
+Get-ChildItem C:\Windows\System32\spool\drivers\x64\PCC              # no vendor cab
+Get-ChildItem C:\Windows\System32\spool\DRIVERS\x64\3                # no vendor files
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Control\Print\Monitors"  # no vendor monitors
+Get-PrinterPort                                                     # no vendor port description
+Get-WinEvent -LogName Microsoft-Windows-PrintService/Admin -MaxEvents 20   # no new 318 events
 ```
 
-Optioneel (WU-deur dicht):
+Optional (close the WU door):
 
 ```powershell
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" /v ExcludeWUDriversInQualityUpdate /t REG_DWORD /d 1 /f
 ```
 
-## 5. Debugging: waar vind je wat
+## 5. Debugging: where to find what
 
-| Bron | Locatie / commando | Wat het je vertelt |
+| Source | Location / command | What it tells you |
 |---|---|---|
-| **PrintService Admin-log** | `Get-WinEvent -LogName Microsoft-Windows-PrintService/Admin` | Event 318 (driver-settings-upgrade-fouten) bij spoolerstart; onthult verborgen queue-connecties (`\\HOST\printer,LocalOnly`) en driverpaden |
-| **PrintService Operational-log** | `Get-WinEvent -LogName Microsoft-Windows-PrintService/Operational` | Poort- en job-gebeurtenissen |
-| **setupapi.dev.log** | `C:\Windows\INF\setupapi.dev.log` — bijv. `Select-String -Path ... -Pattern "<infbestand>"` | **De gouden bron**: toont exact wanneer en van welk pad een pakket geïmporteerd is (zo werd de PCC-cab/staging-herimport ontmaskerd, inclusief tijdstempen) |
-| **Poort-foutcodes** | `try { Remove-PrinterPort ... -EA Stop } catch { $_.Exception \| fl * -Force }` | HRESULT zegt alles: `0x80070002` = file-not-found → poort verwijst naar afwezig device (dode dynamische poort) |
-| **Poort-registry** | `HKLM\SYSTEM\CurrentControlSet\Control\Print\Monitors\USB Monitor\Ports` + `reg query ... /s /f USB001` | Device-koppeling, Parent Device Id, en de portlist-referentie |
-| **Monitor-inventaris** | `HKLM\SYSTEM\CurrentControlSet\Control\Print\Monitors` | Vendor-port- en language-monitors (bijv. `XRZWSLBI.DLL`) |
-| **Device-query's** | `pnputil /enum-devices /drivers` en `/disconnected` | Welke INF elke devnode vasthoudt, inclusief spook-devnodes |
-| **Driverstore** | `pnputil /enum-drivers`, `Get-WindowsDriver -Online` | Published Names, originele INF-namen, datums |
+| **PrintService Admin log** | `Get-WinEvent -LogName Microsoft-Windows-PrintService/Admin` | Event 318 (driver settings upgrade errors) at spooler start; reveals hidden queue connections (`\\HOST\printer,LocalOnly`) and driver paths |
+| **PrintService Operational log** | `Get-WinEvent -LogName Microsoft-Windows-PrintService/Operational` | Port and job events |
+| **setupapi.dev.log** | `C:\Windows\INF\setupapi.dev.log` — e.g. `Select-String -Path ... -Pattern "<inf-file>"` | **The golden source**: shows exactly when and from which path a package was imported (this is how the PCC-cab/staging re-import was unmasked, including timestamps) |
+| **Port error codes** | `try { Remove-PrinterPort ... -EA Stop } catch { $_.Exception \| fl * -Force }` | The HRESULT says it all: `0x80070002` = file-not-found → port points at a missing device (dead dynamic port) |
+| **Port registry** | `HKLM\SYSTEM\CurrentControlSet\Control\Print\Monitors\USB Monitor\Ports` + `reg query ... /s /f USB001` | Device mapping, Parent Device Id, and the port list reference |
+| **Monitor inventory** | `HKLM\SYSTEM\CurrentControlSet\Control\Print\Monitors` | Vendor port- and language monitors (e.g. `XRZWSLBI.DLL`) |
+| **Device queries** | `pnputil /enum-devices /drivers` and `/disconnected` | Which INF holds each devnode, including ghost devnodes |
+| **Driver store** | `pnputil /enum-drivers`, `Get-WindowsDriver -Online` | Published names, original INF names, dates |
 
-Interpretatie-hulpen:
-- Fout `1801` = ongeldige printernaam, `87` = ongeldige parameter → typisch voor stale connecties/queues.
-- Event 318-regens bij exact het boot-tijdstip → spooler probeert bij elke start iets te valideren dat er eigenlijk niet meer is.
-- `Driver package uninstalled. Failed to delete driver package` → de `/uninstall` lukte, maar er is nog een devnode; check `/enum-devices /disconnected`.
+Interpretation aids:
+- Error `1801` = invalid printer name, `87` = invalid parameter → typical for stale connections/queues.
+- Event 318 repeats at exactly boot time → the spooler tries to validate something at every start that is actually no longer there.
+- `Driver package uninstalled. Failed to delete driver package` → the `/uninstall` succeeded, but a devnode remains; check `/enum-devices /disconnected`.
 
-## 6. Valkuilen uit de praktijk (lessons learned)
+## 6. Pitfalls from practice (lessons learned)
 
-1. **Kabel eraf is geen detail maar de kern**: elke replug met een gevulde store = volledige resurrectie via beste-match-installatie.
-2. **De PCC-cab is de echte ninja**: de DriverStore opruimen zonder `spool\drivers\x64\PCC\` leeg te maken is zinloos — de spooler herimporteert het pakket bij apparaat-detectie (bewijsbaar in setupapi.dev.log).
-3. **Poort verwijderen faalt zolang het device-pad onoplosbaar is** (unplugged) → registry-chirurgie met spooler gestopt is de enige betrouwbare route voor dynamische poorten.
-4. **`pnputil /force + /uninstall` samen werkt niet** — de force-vlag wordt genegeerd.
-5. **Verborgen klanten van een INF**: `USBPRINT\...`-devnodes, `SWD\PRINTENUM{...}`-queue-devnodes en per-user share-connecties (`\\HOST\printer,LocalOnly`) — geen van alle zichtbaar in `Get-Printer`.
-6. **`\\.\USB001` bestaat niet als device-file** (err 2 / `0x80070002`): spooler-poorten zijn API's, geen kernel-objecten; raw data kan alleen via winspool (RAW-datatype) of via een gedeelde queue (`copy /b bestand \\HOST\Share`).
-7. Reboot tussentijds om bestandsvergrendelingen te breken als `Remove-Item` op driver-DLL's faalt.
+1. **Cable unplugged is not a detail but the core**: every replug with a filled store = full resurrection via best-match install.
+2. **The PCC cab is the real ninja**: cleaning the DriverStore without emptying `spool\drivers\x64\PCC\` is pointless — the spooler re-imports the package on device detection (provable in setupapi.dev.log).
+3. **Port removal fails as long as the device path is unresolvable** (unplugged) → registry surgery with the spooler stopped is the only reliable route for dynamic ports.
+4. **`pnputil /force + /uninstall` together does not work** — the force flag is ignored.
+5. **Hidden clients of an INF**: `USBPRINT\...` devnodes, `SWD\PRINTENUM{...}` queue devnodes and per-user share connections (`\\HOST\printer,LocalOnly`) — none of them visible in `Get-Printer`.
+6. **`\\.\USB001` does not exist as a device file** (err 2 / `0x80070002`): spooler ports are APIs, not kernel objects; raw data can only go via winspool (RAW datatype) or via a shared queue (`copy /b file \\HOST\Share`).
+7. Reboot in between to break file locks if `Remove-Item` on driver DLLs fails.
 
-## 7. Bijlage: raw printen naar de schone USB-poort (Win 11 24H2)
+## 7. Appendix: raw printing to the cleaned USB port (Win 11 24H2)
 
-Na de schoonmaak is de Phaser puur inbox (`usbprint.inf`) en ontstaat `USB001` automatisch zodra een queue de printer gebruikt:
+After cleanup the Phaser is purely inbox (`usbprint.inf`) and `USB001` appears automatically once a queue uses the printer:
 
 ```powershell
-# Eenmalig: testqueue op de poort + share als RAW-kanaal
+# One-time: test queue on the port + share as RAW channel
 Add-Printer -Name "Phaser Raw" -DriverName "Generic / Text Only" -PortName USB001
 Set-Printer -Name "Phaser Raw" -Shared $True -ShareName "PhaserRaw"
 ```
 
 ```bat
-:: Per job: raw blob (bijv. HBPL uit foo2sq21hbpl) rechtstreeks naar de printer
+:: Per job: raw blob (e.g. HBPL from foo2sq21hbpl) straight to the printer
 copy /b C:\temp\colorpage.hbpl \\%COMPUTERNAME%\PhaserRaw
 ```
 
-Binnen PowerShell: `\\$env:COMPUTERNAME\PhaserRaw` (en let op: `powershell -Command "... $True ..."` vanuit PowerShell interpoleert `$True` — draai Zulke regels direct in de sessie).
+Inside PowerShell: `\\$env:COMPUTERNAME\PhaserRaw` (note: `powershell -Command "... $True ..."` from within PowerShell interpolates `$True` — run such lines directly in the session).
 
-Alternatief zonder share: winspool RAW via .NET (`OpenPrinter` → `StartDocPrinter` met `pDataType = "RAW"` → `WritePrinter`). Zie ook `pappl/phaser6125-pappl.c` (`usbprint:` scheme, zelfde mechanisme in C).
+Alternative without share: winspool RAW via .NET (`OpenPrinter` → `StartDocPrinter` with `pDataType = "RAW"` → `WritePrinter`). See also `pappl/phaser6125-pappl.c` (`usbprint:` scheme, same mechanism in C).
 
 ---
 
-*Device-gegevens voor hergebruik: Xerox Phaser 6125N · USB `0924:3d61` · serial `LAL035151` · printer-interface-GUID `{28d78fad-5a12-11d1-ae5b-0000f803a8c2}` · oorspronkelijke driver `xrhwszi.inf` (2007) → `oem140.inf`.*
+*Device data for reuse: Xerox Phaser 6125N · USB `0924:3d61` · serial `LAL035151` · printer-interface-GUID `{28d78fad-5a12-11d1-ae5b-0000f803a8c2}` · original driver `xrhwszi.inf` (2007) → `oem140.inf`.*
