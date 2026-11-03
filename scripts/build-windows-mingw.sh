@@ -98,7 +98,7 @@ LIBS="$LIBS $NUGET/libjpeg-turbo-v142.2.0.4.3/build/native/lib/x64/v142/Release/
 
 $MINGW -O2 -o "$PREFIX/phaser6125-pappl.exe" \
     "$OBJ/phaser6125-pappl.o" "$OBJ/hbpl_core.o" "$OBJ/mdns_mini.o" "$OBJ/snmp_poll.o" \
-    $LIBS -lws2_32 -ladvapi32 -lshell32 -luser32 -lcrypt32 -lsecur32
+    $LIBS -lws2_32 -lwinspool -ladvapi32 -lshell32 -luser32 -lcrypt32 -lsecur32
 
 echo "==> OK: $PREFIX/phaser6125-pappl.exe ($(stat -c%s "$PREFIX/phaser6125-pappl.exe") bytes)"
 

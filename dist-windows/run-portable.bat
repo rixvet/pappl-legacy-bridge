@@ -14,6 +14,9 @@ setlocal
 REM ---- Configuration: set your printer IP here (or via PRINTER_IP env var) ----
 if "%PRINTER_IP%"=="" set PRINTER_IP=192.168.178.10
 REM Device: network (default) or USB. For USB set: set PRINTER_DEV=usbprint://./USB001
+REM --- USB raw share (Win11 24H2+: \\.\USB001 is spooler-internal, err 2) ---
+REM Create a raw share on the USB port; gateway writes via \\%COMPUTERNAME%\PhaserRaw
+powershell -NoProfile -Command "Add-PrinterDriver -Name 'Generic / Text Only' -ErrorAction SilentlyContinue; if (-not (Get-Printer -Name 'Phaser Raw' -ErrorAction SilentlyContinue)) { Add-Printer -Name 'Phaser Raw' -DriverName 'Generic / Text Only' -PortName USB001 -ErrorAction SilentlyContinue }; Set-Printer -Name 'Phaser Raw' -Shared $True -ShareName 'PhaserRaw' -ErrorAction SilentlyContinue"
 if "%PRINTER_DEV%"=="" set PRINTER_DEV=socket://%PRINTER_IP%:9100
 set HERE=%~dp0
 cd /d "%HERE%"

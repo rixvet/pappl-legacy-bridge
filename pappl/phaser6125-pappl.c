@@ -749,40 +749,91 @@ static bool snmp_status_cb(pappl_printer_t *printer)
 
 #ifdef _WIN32
 
+/* usbprint: device state — either a raw device-file HANDLE (\\.\USB001)
+ * or a printer-share HANDLE (\\host\share via OpenPrinter/WritePrinter). */
+typedef struct {
+    HANDLE h;          /* CreateFile handle for \\.\ device files */
+    HANDLE hPrinter;   /* OpenPrinter handle for \\host\share printer shares */
+} usbprint_ctx_t;
+
 static bool usbprint_open(pappl_device_t *device, const char *device_uri, const char *name)
 {
     const char *res = strstr(device_uri, "://");
     char path[256];
-    HANDLE h;
+    usbprint_ctx_t *ctx;
     (void)name;
 
     res = res ? res + 3 : device_uri;
-    /* "./USB001" → "\\.\USB001", "USB001" → "\\.\USB001" */
-    if (res[0] == '.' && res[1] == '/') res += 2;
-    snprintf(path, sizeof path, "\\\\.\\%s", res);
-
-    h = CreateFileA(path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-    if (h == INVALID_HANDLE_VALUE) {
-        papplDeviceError(device, "Cannot open %s (err %lu)", path, GetLastError());
-        return false;
+    if (res[0] == '.' && res[1] == '/')
+        snprintf(path, sizeof path, "\\\\.\\%s", res + 2);       /* \\.\USB001 */
+    else if (strchr(res, '/')) {
+        snprintf(path, sizeof path, "\\\\%s", res);                /* \\host\share */
+        for (char *p = path + 2; *p; p++) if (*p == '/') *p = '\\';
+    } else {
+        snprintf(path, sizeof path, "\\\\.\\%s", res);
     }
-    papplDeviceSetData(device, (void *)h);
+
+    ctx = (usbprint_ctx_t *)calloc(1, sizeof *ctx);
+    if (!ctx) return false;
+
+    if (!strncmp(path, "\\\\.\\", 4)) {
+        /* Raw device file — note: \\.\USB00x is spooler-internal on Win11 24H2+,
+         * CreateFile returns err 2 there; kept for older Windows / COM ports. */
+        ctx->h = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                             NULL, OPEN_EXISTING, 0, NULL);
+        if (ctx->h == INVALID_HANDLE_VALUE) {
+            papplDeviceError(device, "Cannot open %s (err %lu)", path, GetLastError());
+            free(ctx);
+            return false;
+        }
+    } else {
+        /* UNC printer share — via spooler API (same channel as `copy /b` to a share) */
+        if (!OpenPrinterA(path, &ctx->hPrinter, NULL)) {
+            papplDeviceError(device, "Cannot open printer share %s (err %lu)", path, GetLastError());
+            free(ctx);
+            return false;
+        }
+        /* StartDocPrinter is required before WritePrinter; PAPPL opens the
+         * device per job, so open=start-doc and close=end-doc. */
+        {
+            DOC_INFO_1A di;
+            memset(&di, 0, sizeof di);
+            di.pDocName = name ? name : "Phaser6125N";
+            di.pDatatype = "RAW";
+            if (!StartDocPrinterA(ctx->hPrinter, 1, (LPBYTE)&di)) {
+                papplDeviceError(device, "StartDocPrinter failed on %s (err %lu)", path, GetLastError());
+                ClosePrinter(ctx->hPrinter);
+                free(ctx);
+                return false;
+            }
+        }
+    }
+    papplDeviceSetData(device, ctx);
     return true;
 }
 
 static void usbprint_close(pappl_device_t *device)
 {
-    HANDLE h = (HANDLE)papplDeviceGetData(device);
-    if (h && h != INVALID_HANDLE_VALUE) CloseHandle(h);
+    usbprint_ctx_t *ctx = (usbprint_ctx_t *)papplDeviceGetData(device);
+    if (!ctx) return;
+    if (ctx->h && ctx->h != INVALID_HANDLE_VALUE) CloseHandle(ctx->h);
+    if (ctx->hPrinter) { EndDocPrinter(ctx->hPrinter); ClosePrinter(ctx->hPrinter); }
+    free(ctx);
     papplDeviceSetData(device, NULL);
 }
 
 static ssize_t usbprint_write(pappl_device_t *device, const void *buffer, size_t bytes)
 {
-    HANDLE h = (HANDLE)papplDeviceGetData(device);
+    usbprint_ctx_t *ctx = (usbprint_ctx_t *)papplDeviceGetData(device);
     DWORD written = 0;
-    if (!h || h == INVALID_HANDLE_VALUE) return -1;
-    if (!WriteFile(h, buffer, (DWORD)bytes, &written, NULL)) return -1;
+    if (!ctx) return -1;
+    if (ctx->hPrinter) {
+        if (!WritePrinter(ctx->hPrinter, (void *)buffer, (DWORD)bytes, &written))
+            return -1;
+        return (ssize_t)written;
+    }
+    if (!ctx->h || ctx->h == INVALID_HANDLE_VALUE) return -1;
+    if (!WriteFile(ctx->h, buffer, (DWORD)bytes, &written, NULL)) return -1;
     return (ssize_t)written;
 }
 

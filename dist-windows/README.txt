@@ -40,15 +40,20 @@ The SN= field is present in printer-device-id for clients that parse it.
 ### USB instead of network
 
 If the printer is connected via USB to the gateway PC, set the device
+(default is now the USB raw share — run-portable.bat creates it):
 instead of the IP:
 
 ```bat
-set PRINTER_DEV=usbprint://./USB001
+set PRINTER_DEV=usbprint://%COMPUTERNAME%/PhaserRaw
 ```
 
-`usbprint:` writes the raw HBPL stream straight to the Windows device file
-(the USB port, same mechanism as `copy /b out.bin` to that port). Use the
-USB port name from the old queue's port properties (USB001, USB002, ...).
+`usbprint:` writes the raw HBPL stream to a **raw printer share** on the USB
+port (`\\%COMPUTERNAME%\PhaserRaw`, created by run-portable.bat with the
+Generic/Text Only driver on USB001). This uses the spooler API
+(OpenPrinter/WritePrinter, RAW datatype) — the same channel as
+`copy /b out.bin \\%COMPUTERNAME%\PhaserRaw`. Note: `\\.\USB00x` device
+files do not exist on Windows 11 24H2+ (err 2), hence the share route.
+Verified end-to-end: 263 KB HBPL job written to the USB printer, job completed.
  — just switch PRINTER_DEV.
 
 For the USB00x device file to exist, Windows must bind **usbprint.sys**
