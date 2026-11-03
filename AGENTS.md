@@ -21,3 +21,4 @@
 - Commit trailer (single line, credits + model):
   `Co-Authored-By: Mistral Vibe (Mistral Large 4) <vibe@mistral.ai>`
 - When the user must run a command themselves (e.g. `git push`), present it as a ready-to-copy **code block** — never inline.
+- **On session close (when the user says so):** save all lessons learned into the repo (RE-NOTES.md / docs/) as a commit — nothing valuable may live only in the session context or local scratchpad. Future sessions must be able to resume from the repo alone.
