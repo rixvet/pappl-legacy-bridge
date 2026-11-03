@@ -450,6 +450,15 @@ Voor meerdere printers / een appliance: PAPPL (github.com/istopwg/pappl)
 of een Raspberry Pi + CUPS — onze repo is al compatibel getest op
 22.04/24.04/26.04 (`scripts/test-compat-distro.sh`).
 
+## 13. Vendor v3-driver verwijderen (Windows 11 24H2)
+
+Volledige procedure + debugging-handreiking (zes schuilplaatsen incl. de
+PCC-cab die de spooler herimporteert, pnputil-semantiek, setupapi.dev.log als
+gouden bron): zie **[docs/remove-vendor-driver-windows.md](docs/remove-vendor-driver-windows.md)**.
+Casus: Xerox Phaser 6125N (`xrhwszi.inf` → `oem140.inf`), incl. raw-USB
+printen na cleanup via gedeelde queue `\\HOST\PhaserRaw` (zie ook §12
+usbprint: scheme).
+
 ## 12. PAPPL printer application (driverless IPP, Windows-proof)
 
 `pappl/phaser6125-pappl.c` wraps the HBPL encoder (`native/hbpl_core.c`) as a
