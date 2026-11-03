@@ -608,3 +608,31 @@ see **[docs/remove-vendor-driver-windows.md](docs/remove-vendor-driver-windows.m
 Case study: Xerox Phaser 6125N (`xrhwszi.inf` → `oem140.inf`), incl. raw-USB
 printing after cleanup via shared queue `\\\\HOST\\PhaserRaw` (see also §12
 usbprint: scheme).
+
+## 14. Session lessons (2026-11-02/03, WINNIE)
+
+Key lessons from building the PAPPL gateway end-to-end on real Windows 11:
+
+- PAPPL 1.4.x custom `system_cb` skips TCP listeners — call
+  `papplSystemAddListeners(system, "0.0.0.0")` yourself (also on Windows; the
+  `#ifndef _WIN32` guard was a real bug).
+- PAPPL Windows CLI subcommands read the server port from HKLM — needs admin;
+  as normal user use IPP directly (ipptool/Create-Printer) or run as admin.
+- `tmpfile()` fails in Windows service context (no TMP/TEMP) — use
+  GetTempPath+GetTempFileName.
+- Windows 11 "Add device" sends WSD probes (239.255.255.250:3702) AND mDNS; a
+  discovered queue may get a WSD port — our gateway is IPP-only, so re-add via
+  the manual IPP URL. Serial Number only comes from WSD metadata ("Unavailable"
+  on pure IPP). Disable Windows auto-setup; clean stale WSD ports/queues.
+- `\\.\USB00x` is not a device file on Win11 24H2 (err 2). Raw USB works via a
+  shared raw printer queue (`\\HOST\PhaserRaw`, Generic/Text Only) — same
+  channel as OpenPrinter+StartDocPrinter(RAW)+WritePrinter (our `usbprint:`).
+- mDNS TXT `UUID` must equal IPP `printer-uuid`; `adminurl` must be
+  `http://<host>.local:8631/...` (set hostname with .local suffix).
+- SNMPv1 (community "public") works but needs long timeouts; chunk multi-OID
+  GETs (batch ~10, printer returns tooBig on more).
+- Force-push after author-email rewrite: `git filter-branch -f` needs
+  `refs/original/` cleanup first.
+- Commit discipline: English messages, single-line trailer
+  `Co-Authored-By: Mistral Vibe (Mistral Large 4) <vibe@mistral.ai>`, no push
+  without explicit one-time permission, user-run commands as copy/paste blocks.

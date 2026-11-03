@@ -17,7 +17,7 @@
 
 ## Git
 - **Never push without explicit user permission** — permission is one-time per grant, ask again for the next push.
-- Remotes: `github` = git@github.com:rixvet/pappl-legacy-bridge.git, `ubsd` = ssh://rick@ubsd:/local0/repos/pappl-legacy-bridge.git (upstream).
+- Remotes: `github` (public) + a private upstream — see `git remote -v`; never write private hostnames into docs.
 - Commit messages in **English**, short.
 - Commit trailer (single line, credits + model):
   `Co-Authored-By: Mistral Vibe (Mistral Large 4) <vibe@mistral.ai>`
