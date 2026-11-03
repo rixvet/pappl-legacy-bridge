@@ -24,6 +24,6 @@ bash scripts/package-windows.sh        # Phaser6125N-PAPPL-win64.zip (25 MB)
 
 ## License
 
-- **Code**: Apache-2.0 — zie [LICENSE](LICENSE)
+- **Code**: Apache-2.0 — zie [LICENSE.md](LICENSE.md)
 - **Documentatie/content** (RE-NOTES.md, docs/, README's): CC BY 4.0 — zie [docs/CC-BY-4.0.txt](docs/CC-BY-4.0.txt)
 - Third-party (PAPPL, Ghostscript, NuGet packages): zie [LICENSE-NOTES.md](LICENSE-NOTES.md)

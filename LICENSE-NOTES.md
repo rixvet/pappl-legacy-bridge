@@ -2,7 +2,7 @@
 
 | Onderdeel | Licentie | Bestand |
 |---|---|---|
-| **Code** (C sources, scripts, build files, .bat/.ps1) | Apache License 2.0 | `LICENSE` |
+| **Code** (C sources, scripts, build files, .bat/.ps1) | Apache License 2.0 | `LICENSE.md` |
 | **Documentatie & content** (RE-NOTES.md, ANALYSIS.md, docs/, README's, dist-windows/README.txt) | CC BY 4.0 | `docs/CC-BY-4.0.txt` |
 
 Apache-2.0 voor de code (attribution + patent grant — vergelijkbaar met CC BY 4.0).
